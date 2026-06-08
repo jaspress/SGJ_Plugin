@@ -1,39 +1,47 @@
-using Hints;
+锘縰sing HintServiceMeow.Core.Enum;
 using HintServiceMeow.Core.Models.Hints;
 using SGJ_Plugin.UI.Core;
-using System;
 
 namespace SGJ_Plugin.UI.Elements
 {
-    /// <summary>
-    /// 简单文本提示元素
-    /// 用于显示静态或动态文本内容
-    /// </summary>
     public class TextHintElement : UIElement
     {
-        private TextHint _hint;
+        private readonly Hint _hint;
 
         public TextHintElement(string id, string content = "") : base(id)
         {
-            Content = content;
-            _hint = new TextHint(content, new HintParameter(1, 1), null, null);
+            Content = content ?? string.Empty;
+            _hint = new Hint
+            {
+                Id = id,
+                Text = Content,
+                FontSize = FontSize,
+                XCoordinate = XCoordinate,
+                YCoordinate = YCoordinate,
+                Alignment = HintAlignment.Center,
+                SyncSpeed = HintSyncSpeed.UnSync,
+            };
         }
 
-        public override TextHint GetHintObject()
+        public HintAlignment Alignment
+        {
+            get => _hint.Alignment;
+            set => _hint.Alignment = value;
+        }
+
+        public override AbstractHint GetHintObject()
         {
             return _hint;
         }
 
-        public override void Update()
+        protected override void ApplyToHint()
         {
-            base.Update();
-            _hint.Content = Content;
-        }
-
-        public override void Dispose()
-        {
-            _hint = null;
-            base.Dispose();
+            _hint.Id = Id;
+            _hint.Text = IsVisible ? (Content ?? string.Empty) : string.Empty;
+            _hint.FontSize = FontSize;
+            _hint.XCoordinate = XCoordinate;
+            _hint.YCoordinate = YCoordinate;
+            _hint.Hide = !IsVisible;
         }
     }
 }

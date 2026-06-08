@@ -4,25 +4,14 @@ using System;
 namespace SGJ_Plugin.Modules
 {
     /// <summary>
-    /// 插件功能模块基类
-    /// 提供模块的生命周期管理和错误处理
-    /// 符合 EXILED 框架设计模式
+    /// Base class for plugin feature modules.
     /// </summary>
     public abstract class ModuleBase : IDisposable
     {
-        /// <summary>
-        /// 模块名称
-        /// </summary>
         public abstract string Name { get; }
 
-        /// <summary>
-        /// 模块是否已启用
-        /// </summary>
         public bool IsEnabled { get; protected set; }
 
-        /// <summary>
-        /// 启用模块
-        /// </summary>
         public virtual void Enable()
         {
             if (IsEnabled)
@@ -32,18 +21,15 @@ namespace SGJ_Plugin.Modules
             {
                 OnEnable();
                 IsEnabled = true;
-                Log.Info($"[{Name}] 模块已启用");
+                Log.Info($"[{Name}] Enabled.");
             }
             catch (Exception ex)
             {
-                Log.Error($"[{Name}] 启用模块时出错: {ex.Message}\n{ex.StackTrace}");
+                Log.Error($"[{Name}] Failed to enable module: {ex}");
                 IsEnabled = false;
             }
         }
 
-        /// <summary>
-        /// 禁用模块
-        /// </summary>
         public virtual void Disable()
         {
             if (!IsEnabled)
@@ -53,26 +39,26 @@ namespace SGJ_Plugin.Modules
             {
                 OnDisable();
                 IsEnabled = false;
-                Log.Info($"[{Name}] 模块已禁用");
+                Log.Info($"[{Name}] Disabled.");
             }
             catch (Exception ex)
             {
-                Log.Error($"[{Name}] 禁用模块时出错: {ex.Message}\n{ex.StackTrace}");
+                Log.Error($"[{Name}] Failed to disable module: {ex}");
             }
         }
 
         /// <summary>
-        /// 模块启用时的处理逻辑（由子类实现）
+        /// Called when the module is enabled.
         /// </summary>
         protected abstract void OnEnable();
 
         /// <summary>
-        /// 模块禁用时的处理逻辑（由子类实现）
+        /// Called when the module is disabled.
         /// </summary>
         protected abstract void OnDisable();
 
         /// <summary>
-        /// 释放资源
+        /// Releases module resources.
         /// </summary>
         public virtual void Dispose()
         {
@@ -83,7 +69,7 @@ namespace SGJ_Plugin.Modules
         }
 
         /// <summary>
-        /// 析构函数确保资源被释放
+        /// Finalizer fallback for module cleanup.
         /// </summary>
         ~ModuleBase()
         {

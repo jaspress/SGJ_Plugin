@@ -1,13 +1,6 @@
-using Exiled.API.Enums;
-using Exiled.API.Extensions;
 using Exiled.API.Features;
-using Exiled.API.Features.Items;
 using Exiled.Events.EventArgs.Player;
-using Exiled.Events.Handlers;
-using InventorySystem.Items.Firearms;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using CustomPlayerEvents = Exiled.Events.Handlers.Player;
 using Firearm = Exiled.API.Features.Items.Firearm;
 
@@ -15,9 +8,10 @@ namespace SGJ_Plugin.Modules
 {
     public class InfiniteAmmoModule : ModuleBase
     {
-        public override string Name => "枪械无限子弹模块";
+        public override string Name => "Infinite Ammo Module";
 
-        private Config _config;
+        private readonly Config _config;
+
         public InfiniteAmmoModule(Config config)
         {
             _config = config;
@@ -27,21 +21,16 @@ namespace SGJ_Plugin.Modules
         {
             try
             {
-                // 订阅玩家装弹事件
-                CustomPlayerEvents.DroppingAmmo += (ev) => ev.IsAllowed = false; // 禁止丢弃弹药
+                CustomPlayerEvents.DroppingAmmo += OnDroppingAmmo;
                 CustomPlayerEvents.ChangingItem += OnChangingItem;
                 CustomPlayerEvents.ReloadingWeapon += OnReloadingWeapon;
                 CustomPlayerEvents.ReloadedWeapon += OnReloadedWeapon;
 
-                Log.Info($"[{Name}] 已启用");
-
-                if (_config.Debug)
-                {
-                }
+                Log.Info($"[{Name}] Event handlers registered.");
             }
             catch (Exception ex)
             {
-                Log.Error($"[{Name}] 启用时出错: {ex.Message}");
+                Log.Error($"[{Name}] Failed to register event handlers: {ex}");
                 throw;
             }
         }
@@ -50,35 +39,48 @@ namespace SGJ_Plugin.Modules
         {
             try
             {
-                // 取消订阅玩家装弹事件
-                CustomPlayerEvents.DroppingAmmo -= (ev) => ev.IsAllowed = false;
+                CustomPlayerEvents.DroppingAmmo -= OnDroppingAmmo;
                 CustomPlayerEvents.ChangingItem -= OnChangingItem;
                 CustomPlayerEvents.ReloadingWeapon -= OnReloadingWeapon;
                 CustomPlayerEvents.ReloadedWeapon -= OnReloadedWeapon;
 
-                Log.Info($"[{Name}] 已禁用");
+                Log.Info($"[{Name}] Event handlers unregistered.");
             }
             catch (Exception ex)
             {
-                Log.Error($"[{Name}] 禁用时出错: {ex.Message}");
+                Log.Error($"[{Name}] Failed to unregister event handlers: {ex}");
             }
         }
+
+        private void OnDroppingAmmo(DroppingAmmoEventArgs ev)
+        {
+            ev.IsAllowed = false;
+        }
+
         private void OnReloadedWeapon(ReloadedWeaponEventArgs ev)
         {
-            if (ev.Firearm.Type == ItemType.ParticleDisruptor) return; // 排除粒子干扰器等特殊武器
+            if (ev.Firearm.Type == ItemType.ParticleDisruptor)
+                return;
+
             ev.Player.SetAmmo(ev.Firearm.AmmoType, (ushort)(ev.Firearm.MaxMagazineAmmo));
         }
+
         private void OnChangingItem(ChangingItemEventArgs ev)
         {
-            if (ev.Item == null || ev.Item.Type == ItemType.None) return;
+            if (ev.Item == null || ev.Item.Type == ItemType.None)
+                return;
+
             if (ev.Item is Firearm firearm)
             {
                 ev.Player.SetAmmo(firearm.AmmoType, (ushort)(firearm.MaxMagazineAmmo));
             }
         }
+
         private void OnReloadingWeapon(ReloadingWeaponEventArgs ev)
         {
-            if (ev.Firearm.Type == ItemType.ParticleDisruptor) return; // 排除粒子干扰器等特殊武器
+            if (ev.Firearm.Type == ItemType.ParticleDisruptor)
+                return;
+
             ev.Player.SetAmmo(ev.Firearm.AmmoType, (ushort)(ev.Firearm.MaxMagazineAmmo));
         }
     }

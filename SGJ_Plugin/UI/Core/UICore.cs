@@ -1,114 +1,110 @@
+锘縰sing Exiled.API.Features;
 using HintServiceMeow.Core.Models.Hints;
-using HintServiceMeow.Core.Managers.Providers;
+using HintServiceMeow.Core.Utilities;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace SGJ_Plugin.UI.Core
 {
-    /// <summary>
-    /// UI系统基础类
-    /// 基于HSM（HintServiceMeow）库的提示系统
-    /// </summary>
     public class UICore
     {
-        /// <summary>
-        /// HSM提示提供者
-        /// </summary>
-        public IHintProvider HintProvider { get; private set; }
+        private const string GroupName = "SGJ_Plugin.UI";
+        private readonly Dictionary<string, List<AbstractHint>> _playerHints = new Dictionary<string, List<AbstractHint>>();
 
-        /// <summary>
-        /// 所有激活的UI元素
-        /// </summary>
-        private Dictionary<string, UIElement> _activeElements = new Dictionary<string, UIElement>();
+        public bool IsInitialized { get; private set; }
 
-        /// <summary>
-        /// UI系统是否已初始化
-        /// </summary>
-        public bool IsInitialized { get; private set; } = false;
-
-        /// <summary>
-        /// 初始化UI系统
-        /// </summary>
         public bool Initialize()
         {
-            try
-            {
-                // 获取HSM的提示提供者
-                HintProvider = HintProvider.AddProvider();
-
-                IsInitialized = true;
-                Log.Info("[UICore] UI系统已初始化");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Log.Error($"[UICore] 初始化UI系统失败: {ex.Message}");
-                return false;
-            }
+            IsInitialized = true;
+            Log.Info("[UICore] UI system initialized with HintServiceMeow PlayerDisplay.");
+            return true;
         }
 
-        /// <summary>
-        /// 注册UI元素
-        /// </summary>
-        public void RegisterElement(string id, UIElement element)
+        public void Show(Player player, IEnumerable<UIElement> elements)
         {
-            if (!IsInitialized)
-            {
-                Log.Warning("[UICore] UI系统未初始化，无法注册元素");
+            if (!IsInitialized || player == null || elements == null)
                 return;
-            }
 
-            if (_activeElements.ContainsKey(id))
+            string key = GetPlayerKey(player);
+            PlayerDisplay display = PlayerDisplay.Get(player);
+
+            if (!_playerHints.TryGetValue(key, out List<AbstractHint> hints))
             {
-                Log.Warning($"[UICore] UI元素 '{id}' 已存在，将被覆盖");
+                hints = new List<AbstractHint>();
+                _playerHints[key] = hints;
             }
 
-            _activeElements[id] = element;
-        }
-
-        /// <summary>
-        /// 注销UI元素
-        /// </summary>
-        public void UnregisterElement(string id)
-        {
-            if (_activeElements.Remove(id))
+            foreach (UIElement element in elements.Where(x => x != null))
             {
-                Log.Debug($"[UICore] UI元素 '{id}' 已注销");
+                element.Update();
+                AbstractHint hint = element.GetHintObject();
+                if (hints.Contains(hint))
+                    continue;
+
+                display.AddHint(hint, GroupName);
+                hints.Add(hint);
             }
+
+            display.ForceUpdate(true);
         }
 
-        /// <summary>
-        /// 获取UI元素
-        /// </summary>
-        public UIElement GetElement(string id)
+        public void Remove(Player player, IEnumerable<UIElement> elements)
         {
-            _activeElements.TryGetValue(id, out UIElement element);
-            return element;
+            if (player == null || elements == null)
+                return;
+
+            string key = GetPlayerKey(player);
+            if (!_playerHints.TryGetValue(key, out List<AbstractHint> shownHints))
+                return;
+
+            PlayerDisplay display = PlayerDisplay.Get(player);
+            foreach (UIElement element in elements.Where(x => x != null))
+            {
+                AbstractHint hint = element.GetHintObject();
+                display.RemoveHint(hint, GroupName);
+                shownHints.Remove(hint);
+            }
+
+            if (shownHints.Count == 0)
+                _playerHints.Remove(key);
         }
 
-        /// <summary>
-        /// 检查UI元素是否存在
-        /// </summary>
-        public bool ElementExists(string id)
+        public void Clear(Player player)
         {
-            return _activeElements.ContainsKey(id);
+            if (player == null)
+                return;
+
+            string key = GetPlayerKey(player);
+            if (!_playerHints.TryGetValue(key, out List<AbstractHint> hints))
+                return;
+
+            PlayerDisplay display = PlayerDisplay.Get(player);
+            foreach (AbstractHint hint in hints.ToArray())
+                display.RemoveHint(hint, GroupName);
+
+            _playerHints.Remove(key);
         }
 
-        /// <summary>
-        /// 获取所有激活元素
-        /// </summary>
-        public IEnumerable<UIElement> GetAllElements()
+        public void Forget(Player player)
         {
-            return _activeElements.Values;
+            if (player == null)
+                return;
+
+            _playerHints.Remove(GetPlayerKey(player));
         }
 
-        /// <summary>
-        /// 清空所有UI元素
-        /// </summary>
         public void ClearAll()
         {
-            _activeElements.Clear();
-            Log.Debug("[UICore] 所有UI元素已清空");
+            foreach (Player player in Player.List)
+                Clear(player);
+
+            _playerHints.Clear();
+        }
+
+        private static string GetPlayerKey(Player player)
+        {
+            return string.IsNullOrEmpty(player.UserId) ? player.Id.ToString() : player.UserId;
         }
     }
 }
