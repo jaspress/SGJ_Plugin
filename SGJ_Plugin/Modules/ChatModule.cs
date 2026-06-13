@@ -24,9 +24,11 @@ namespace SGJ_Plugin.Modules
         private readonly Config _config;
         private readonly List<ActiveChatMessage> _activeMessages = new List<ActiveChatMessage>();
         private readonly Dictionary<string, string> _playerPanels = new Dictionary<string, string>();
+        private List<string> _blockedWords = new List<string>();
         private ChatDatabase _database = new ChatDatabase();
         private UIManager _uiManager;
-        private string _dataFilePath;
+        private string _chatLogFilePath;
+        private string _blockedWordsFilePath;
         private CoroutineHandle _refreshCoroutine;
         private bool _refreshCoroutineStarted;
 
@@ -49,8 +51,10 @@ namespace SGJ_Plugin.Modules
                 return;
             }
 
-            _dataFilePath = GetDataFilePath();
+            _chatLogFilePath = GetDataFilePath(_config.ChatConfig.DataFileName, "ChatLog.json");
+            _blockedWordsFilePath = GetDataFilePath(_config.ChatConfig.BlockedWordsDataFileName, "ChatBlockedWords.json");
             LoadData();
+            LoadBlockedWords();
 
             _uiManager = UIManager.Instance;
             if (!_uiManager.Initialize())
@@ -63,7 +67,7 @@ namespace SGJ_Plugin.Modules
                 CreateOrRefreshHud(player);
 
             StartRefreshCoroutine();
-            Log.Info($"[{Name}] Enabled. Data file: {_dataFilePath}");
+            Log.Info($"[{Name}] Enabled. Chat log: {_chatLogFilePath}, blocked words: {_blockedWordsFilePath}");
         }
 
         protected override void OnDisable()
@@ -421,7 +425,7 @@ namespace SGJ_Plugin.Modules
 
         private string GetMatchedBlockedWord(string content)
         {
-            List<string> blockedWords = _config.ChatConfig.BlockedWords;
+            List<string> blockedWords = _blockedWords;
             if (blockedWords == null || blockedWords.Count == 0)
                 return string.Empty;
 
@@ -469,15 +473,15 @@ namespace SGJ_Plugin.Modules
         {
             try
             {
-                Directory.CreateDirectory(Path.GetDirectoryName(_dataFilePath));
+                Directory.CreateDirectory(Path.GetDirectoryName(_chatLogFilePath));
 
-                if (!File.Exists(_dataFilePath))
+                if (!File.Exists(_chatLogFilePath))
                 {
                     SaveData();
                     return;
                 }
 
-                string json = File.ReadAllText(_dataFilePath);
+                string json = File.ReadAllText(_chatLogFilePath);
                 if (!string.IsNullOrWhiteSpace(json))
                     _database = JsonConvert.DeserializeObject<ChatDatabase>(json) ?? new ChatDatabase();
 
@@ -497,13 +501,67 @@ namespace SGJ_Plugin.Modules
             try
             {
                 NormalizeDatabase();
-                Directory.CreateDirectory(Path.GetDirectoryName(_dataFilePath));
-                File.WriteAllText(_dataFilePath, JsonConvert.SerializeObject(_database, Formatting.Indented));
+                Directory.CreateDirectory(Path.GetDirectoryName(_chatLogFilePath));
+                File.WriteAllText(_chatLogFilePath, JsonConvert.SerializeObject(_database, Formatting.Indented));
             }
             catch (Exception ex)
             {
                 Log.Error($"[{Name}] Failed to save chat data: {ex}");
             }
+        }
+
+        private void LoadBlockedWords()
+        {
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(_blockedWordsFilePath));
+
+                if (!File.Exists(_blockedWordsFilePath))
+                {
+                    _blockedWords = NormalizeBlockedWords(_config.ChatConfig.BlockedWords);
+                    SaveBlockedWords();
+                    return;
+                }
+
+                string json = File.ReadAllText(_blockedWordsFilePath);
+                _blockedWords = string.IsNullOrWhiteSpace(json)
+                    ? new List<string>()
+                    : NormalizeBlockedWords(JsonConvert.DeserializeObject<List<string>>(json));
+
+                SaveBlockedWords();
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[{Name}] Failed to load blocked words: {ex.Message}");
+                _blockedWords = new List<string>();
+                SaveBlockedWords();
+            }
+        }
+
+        private void SaveBlockedWords()
+        {
+            try
+            {
+                _blockedWords = NormalizeBlockedWords(_blockedWords);
+                Directory.CreateDirectory(Path.GetDirectoryName(_blockedWordsFilePath));
+                File.WriteAllText(_blockedWordsFilePath, JsonConvert.SerializeObject(_blockedWords, Formatting.Indented));
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"[{Name}] Failed to save blocked words: {ex}");
+            }
+        }
+
+        private static List<string> NormalizeBlockedWords(IEnumerable<string> blockedWords)
+        {
+            if (blockedWords == null)
+                return new List<string>();
+
+            return blockedWords
+                .Where(word => !string.IsNullOrWhiteSpace(word))
+                .Select(word => word.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
         }
 
         private void NormalizeDatabase()
@@ -518,11 +576,11 @@ namespace SGJ_Plugin.Modules
                 _database.Team = new List<ChatRecord>();
         }
 
-        private string GetDataFilePath()
+        private string GetDataFilePath(string configuredFileName, string defaultFileName)
         {
-            string fileName = string.IsNullOrWhiteSpace(_config.ChatConfig.DataFileName)
-                ? "ChatModule_Config.json"
-                : _config.ChatConfig.DataFileName;
+            string fileName = string.IsNullOrWhiteSpace(configuredFileName)
+                ? defaultFileName
+                : configuredFileName;
 
             if (!fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
                 fileName += ".json";

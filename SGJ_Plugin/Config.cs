@@ -186,10 +186,10 @@ namespace SGJ_Plugin
             };
 
             [Description("Level-up hint template. Placeholders are the same as HUD text, plus {gained_xp}.")]
-            public string LevelUpText { get; set; } = "<b><size=20>[📢]恭喜升级到{level}!</size></b>";
+            public string LevelUpText { get; set; } = "<b><size=20><color=#7FFFD4>[📢]你已升级到<color=#90EE90>{level}</color>!</color></size></b>";
 
             [Description("Experience gain hint template. Placeholders are the same as HUD text, plus {gained_xp} and {reason}.")]
-            public string ExperienceGainText { get; set; } = "<b><size=20>[📢]增加经验值{gained_xp}!</size></b>";
+            public string ExperienceGainText { get; set; } = "<b><size=20><color=#7FFFD4>[📢]你已增加经验值<color=#90EE90>{gained_xp}</color>!</color></size></b>";
 
             [Description("Experience notification X coordinate.")]
             public float ExperienceHintXCoordinate { get; set; } = 820f;
@@ -245,23 +245,26 @@ namespace SGJ_Plugin
             [Description("Show observed player's level HUD while spectating.")]
             public bool ShowObservedPlayerLevelHud { get; set; } = true;
 
-            [Description("Spectator HUD text template. Placeholders: {observed_name}, {respawn_info}, {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}.")]
-            public string HudText { get; set; } = "<align=center>你正在观察：{observed_name}</align>\n{respawn_info}";
+            [Description("Text added above the level HUD while spectating a player. Placeholders: {observed_name}.")]
+            public string ObservedPlayerText { get; set; } = "<align=center><size=23><b>你正在观察：{observed_name}</b></size></align>";
 
-            [Description("Template used when no spectated player is found. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}.")]
-            public string NoObservedPlayerText { get; set; } = "<align=center>你正在观察：无</align>\n<align=center>下一次刷新：{respawn_wave} | 倒计时：{respawn_time} | 票数：{respawn_tickets} | 阵营：{respawn_team}</align>";
+            [Description("Spectator HUD text template. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
+            public string HudText { get; set; } = "<align=right><b><size=21.5>下一次刷新：{respawn_wave}\n倒计时：{respawn_time}\n票数：{respawn_tickets}\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
 
-            [Description("Respawn wave info template. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}.")]
-            public string RespawnInfoText { get; set; } = "<align=center>下一次刷新：{respawn_wave} | 倒计时：{respawn_time} | 票数：{respawn_tickets} | 阵营：{respawn_team}</align>";
+            [Description("Template used when no spectated player is found. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
+            public string NoObservedPlayerText { get; set; } = "<align=right><b><size=21.5>下一次刷新：{respawn_wave}\n倒计时：{respawn_time}\n票数：{respawn_tickets}\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
+
+            [Description("Respawn wave info template. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
+            public string RespawnInfoText { get; set; } = "<align=right><b><size=21.5>下一次刷新：{respawn_wave}\n倒计时：{respawn_time}\n票数：{respawn_tickets}\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
 
             [Description("Maximum visible lines. Extra lines are trimmed to avoid going off screen.")]
             public int MaxVisibleLines { get; set; } = 8;
 
             [Description("Spectator HUD X coordinate.")]
-            public float HudXCoordinate { get; set; } = 0f;
+            public float HudXCoordinate { get; set; } = 870f;
 
             [Description("Spectator HUD Y coordinate.")]
-            public float HudYCoordinate { get; set; } = 760f;
+            public float HudYCoordinate { get; set; } = 865f;
 
             [Description("Spectator HUD font size.")]
             public int HudFontSize { get; set; } = 18;
@@ -311,8 +314,11 @@ namespace SGJ_Plugin
             [Description("Enable chat UI module.")]
             public bool IsEnabled { get; set; } = true;
 
-            [Description("JSON file name stored in %AppData%/EXILED/Configs/.")]
-            public string DataFileName { get; set; } = "ChatModule_Config.json";
+            [Description("Chat log JSON file name stored in %AppData%/EXILED/Configs/.")]
+            public string DataFileName { get; set; } = "ChatLog.json";
+
+            [Description("Blocked words JSON file name stored in %AppData%/EXILED/Configs/. The file contains a JSON string array, for example [\"word1\", \"word2\"].")]
+            public string BlockedWordsDataFileName { get; set; } = "ChatBlockedWords.json";
 
             [Description("Global chat template. Placeholders: {channel}, {team_color}, {role_color}, {rolecolor}, {role_name}, {role}, {name}, {content}.")]
             public string GlobalChatTemplate { get; set; } = "<b>[{channel}][<color={rolecolor}>{role_name}</color>] {name}: {content}</b>";
@@ -347,7 +353,7 @@ namespace SGJ_Plugin
             [Description("Team chat UI Y coordinate.")]
             public float TeamYCoordinate { get; set; } = 230f;
 
-            [Description("Blocked words. Messages containing these words will be rejected.")]
+            [Description("Default blocked words written when the blocked words JSON file is first created.")]
             public List<string> BlockedWords { get; set; } = new List<string>();
 
             [Description("Log accepted chat messages to server console.")]

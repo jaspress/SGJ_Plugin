@@ -682,7 +682,12 @@ namespace SGJ_Plugin.Modules
             {
                 Player observed = GetObservedPlayer(viewer);
                 if (_config.SpectatorHudConfig.ShowObservedPlayerLevelHud && observed != null)
-                    return BuildHudTextFor(observed, false);
+                {
+                    string observedText = (_config.SpectatorHudConfig.ObservedPlayerText ?? string.Empty)
+                        .Replace("{observed_name}", observed.Nickname ?? "无");
+                    string observedHud = BuildHudTextFor(observed, false);
+                    return string.IsNullOrWhiteSpace(observedText) ? observedHud : observedText + "\n" + observedHud;
+                }
 
                 return BuildHudTextFor(viewer, false);
             }

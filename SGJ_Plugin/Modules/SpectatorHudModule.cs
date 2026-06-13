@@ -100,7 +100,7 @@ namespace SGJ_Plugin.Modules
             if (element == null)
             {
                 element = _uiManager.CreateTextHint(panelId, ElementId, string.Empty);
-                element.Alignment = HintAlignment.Center;
+                element.Alignment = HintAlignment.Right;
             }
 
             ConfigureElement(element);
@@ -112,7 +112,7 @@ namespace SGJ_Plugin.Modules
             if (element == null)
                 return;
 
-            element.Alignment = HintAlignment.Center;
+            element.Alignment = HintAlignment.Right;
             element.XCoordinate = Clamp(_config.SpectatorHudConfig.HudXCoordinate, -1100f, 1100f);
             element.YCoordinate = Clamp(_config.SpectatorHudConfig.HudYCoordinate, 0f, 1030f);
             element.FontSize = Math.Max(8, Math.Min(60, _config.SpectatorHudConfig.HudFontSize));
@@ -150,18 +150,13 @@ namespace SGJ_Plugin.Modules
 
         private string BuildHudText(Player spectator)
         {
-            Player observed = GetObservedPlayer(spectator);
             RespawnWaveInfo respawnInfo = GetRespawnWaveInfo();
 
-            if (observed == null)
-                return EnsureRespawnInfo(ReplaceRespawnPlaceholders(_config.SpectatorHudConfig.NoObservedPlayerText, respawnInfo), respawnInfo);
-
             string template = string.IsNullOrWhiteSpace(_config.SpectatorHudConfig.HudText)
-                ? "<align=center>你正在观察：{observed_name}</align>\n{respawn_info}"
+                ? _config.SpectatorHudConfig.RespawnInfoText
                 : _config.SpectatorHudConfig.HudText;
 
             string text = template
-                .Replace("{observed_name}", observed.Nickname ?? "无")
                 .Replace("{observed_level_hud}", string.Empty)
                 .Replace("{own_level_hud}", string.Empty)
                 .Replace("{respawn_info}", ReplaceRespawnPlaceholders(_config.SpectatorHudConfig.RespawnInfoText, respawnInfo));
@@ -194,7 +189,8 @@ namespace SGJ_Plugin.Modules
                 .Replace("{respawn_wave}", info.WaveName)
                 .Replace("{respawn_time}", info.TimeLeft)
                 .Replace("{respawn_tickets}", info.Tickets)
-                .Replace("{respawn_team}", info.TeamName);
+                .Replace("{respawn_team}", info.TeamName)
+                .Replace("{team_color}", info.TeamColor);
         }
 
         private string EnsureRespawnInfo(string text, RespawnWaveInfo info)
@@ -240,6 +236,7 @@ namespace SGJ_Plugin.Modules
             return new RespawnWaveInfo
             {
                 TeamName = GetRespawnTeamName(nextTeam),
+                TeamColor = GetRespawnTeamColor(nextTeam),
                 WaveName = GetRespawnWaveName(nextTeam),
                 TimeLeft = FormatTimeLeft(timeLeft),
                 Tickets = isNtf ? ntfTickets.ToString() : isChaos ? chaosTickets.ToString() : $"MTF:{ntfTickets} Chaos:{chaosTickets}",
@@ -407,6 +404,17 @@ namespace SGJ_Plugin.Modules
             return "未知";
         }
 
+        private static string GetRespawnTeamColor(SpawnableFaction team)
+        {
+            if (IsNtfWave(team))
+                return "#6699FF";
+
+            if (IsChaosWave(team))
+                return "#32CD32";
+
+            return "#FFFFFF";
+        }
+
         private static string GetPanelId(string playerKey)
         {
             return "spectator_hud_" + playerKey.Replace("@", "_").Replace(".", "_").Replace(":", "_");
@@ -438,6 +446,7 @@ namespace SGJ_Plugin.Modules
         private class RespawnWaveInfo
         {
             public string TeamName { get; set; } = "未知";
+            public string TeamColor { get; set; } = "#FFFFFF";
             public string WaveName { get; set; } = "未知";
             public string TimeLeft { get; set; } = "00:00";
             public string Tickets { get; set; } = "0";
