@@ -1,4 +1,5 @@
-﻿using Exiled.API.Interfaces;
+﻿using Exiled.API.Enums;
+using Exiled.API.Interfaces;
 using PlayerRoles;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -22,8 +23,20 @@ namespace SGJ_Plugin
         [Description("Player level system settings.")]
         public LevelSystemConfigClass LevelSystemConfig { get; set; } = new LevelSystemConfigClass();
 
+        [Description("Spectator HUD module settings.")]
+        public SpectatorHudConfigClass SpectatorHudConfig { get; set; } = new SpectatorHudConfigClass();
+
         [Description("Player title override system settings.")]
         public TitleSystemConfigClass TitleSystemConfig { get; set; } = new TitleSystemConfigClass();
+
+        [Description("Chat UI module settings.")]
+        public ChatConfigClass ChatConfig { get; set; } = new ChatConfigClass();
+
+        [Description("Player damage manager module settings.")]
+        public DamageManagerConfigClass DamageManagerConfig { get; set; } = new DamageManagerConfigClass();
+
+        [Description("Player surrender module settings.")]
+        public SurrenderConfigClass SurrenderModuleConfig { get; set; } = new SurrenderConfigClass();
 
         public class InfiniteAmmoConfigClass
         {
@@ -101,11 +114,11 @@ namespace SGJ_Plugin
             [Description("Show the level HUD.")]
             public bool ShowHud { get; set; } = true;
 
-            [Description("JSON file name stored in %AppData%/EXILED/Config/.")]
-            public string DataFileName { get; set; } = "SGJ_LevelSystem.json";
+            [Description("JSON file name stored in %AppData%/EXILED/Configs/.")]
+            public string DataFileName { get; set; } = "LevelModule_Config.json";
 
-            [Description("HUD text template. Placeholders: {name}, {steamid}, {level}, {xp}, {required_xp}, {total_xp}, {title}, {rankname}, {level_rankname}, {title_rankname}, {title_color}, {progress_bar}, {progress_percent}, {kills}, {deaths}, {escapes}.")]
-            public string HudText { get; set; } = "<size=22><b><color=#00FFFF>名字:</color> {name} | <color=#FFD700>等级:</color> {level} | <color=#7FFF00>EXP:</color> {xp}/{required_xp} | <color=#DA70D6>称号:</color> {title}</size>\n    <align=center><size=20>[{level_rankname}]</size></align></b>";
+            [Description("HUD text template. Placeholders: {name}, {steamid}, {level}, {xp}, {required_xp}, {total_xp}, {title}, {rankname}, {level_rankname}, {title_rankname}, {title_color}, {progress_bar}, {progress_percent}, {kills}, {deaths}, {escapes}, {role_name}, {rolecolor}, {role_color}.")]
+            public string HudText { get; set; } = "<size=22><b><color=#00FFFF>名字:</color> {name} | <color=#FFD700>等级:</color> {level} | <color=#7FFF00>EXP:</color> {xp}/{required_xp} | <color=#DA70D6>称号:</color> {title}</size>\n<align=center><size=20>[{level_rankname}] \n你正在扮演：[<color={rolecolor}>{role_name}</color>]</size></align></b>";
 
             [Description("Progress bar filled character.")]
             public string ProgressBarFilled { get; set; } = "|";
@@ -185,16 +198,46 @@ namespace SGJ_Plugin
             public string Color { get; set; } = "#C0C0C0";
         }
 
+        public class SpectatorHudConfigClass
+        {
+            [Description("Enable spectator HUD module.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("Show observed player's level HUD while spectating.")]
+            public bool ShowObservedPlayerLevelHud { get; set; } = true;
+
+            [Description("Spectator HUD text template. Placeholders: {observed_name}, {respawn_info}, {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}.")]
+            public string HudText { get; set; } = "<align=center>你正在观察：{observed_name}</align>\n{respawn_info}";
+
+            [Description("Template used when no spectated player is found. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}.")]
+            public string NoObservedPlayerText { get; set; } = "<align=center>你正在观察：无</align>\n<align=center>下一次刷新：{respawn_wave} | 倒计时：{respawn_time} | 票数：{respawn_tickets} | 阵营：{respawn_team}</align>";
+
+            [Description("Respawn wave info template. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}.")]
+            public string RespawnInfoText { get; set; } = "<align=center>下一次刷新：{respawn_wave} | 倒计时：{respawn_time} | 票数：{respawn_tickets} | 阵营：{respawn_team}</align>";
+
+            [Description("Maximum visible lines. Extra lines are trimmed to avoid going off screen.")]
+            public int MaxVisibleLines { get; set; } = 8;
+
+            [Description("Spectator HUD X coordinate.")]
+            public float HudXCoordinate { get; set; } = 0f;
+
+            [Description("Spectator HUD Y coordinate.")]
+            public float HudYCoordinate { get; set; } = 760f;
+
+            [Description("Spectator HUD font size.")]
+            public int HudFontSize { get; set; } = 18;
+        }
+
         public class TitleSystemConfigClass
         {
             [Description("Enable title override system.")]
             public bool IsEnabled { get; set; } = true;
 
-            [Description("JSON file name stored in %AppData%/EXILED/Config/.")]
-            public string DataFileName { get; set; } = "SGJ_TitleSystem.json";
+            [Description("JSON file name stored in %AppData%/EXILED/Configs/.")]
+            public string DataFileName { get; set; } = "TitleModule_Config.json";
 
             [Description("Default title color when title system rankcolor is empty. Use color names like pink, red, green, cyan, or rainbow.")]
-            public string DefaultRankColor { get; set; } = "green";
+            public string DefaultRankColor { get; set; } = string.Empty;
 
             [Description("Rainbow color sequence used when rankcolor is rainbow.")]
             public List<string> RainbowColors { get; set; } = new List<string>
@@ -222,6 +265,94 @@ namespace SGJ_Plugin
                 "army_green",
                 "pumpkin",
             };
+        }
+
+        public class ChatConfigClass
+        {
+            [Description("Enable chat UI module.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("JSON file name stored in %AppData%/EXILED/Configs/.")]
+            public string DataFileName { get; set; } = "ChatModule_Config.json";
+
+            [Description("Global chat template. Placeholders: {channel}, {team_color}, {role_color}, {rolecolor}, {role_name}, {role}, {name}, {content}.")]
+            public string GlobalChatTemplate { get; set; } = "<b>[{channel}][<color={rolecolor}>{role_name}</color>] {name}: {content}</b>";
+
+            [Description("Team chat template. Placeholders: {channel}, {team_color}, {role_color}, {rolecolor}, {role_name}, {role}, {name}, {content}.")]
+            public string TeamChatTemplate { get; set; } = "<b>[{channel}][<color={rolecolor}>{role_name}</color>] {name}: {content}</b>";
+
+            [Description("Seconds global chat remains visible.")]
+            public float GlobalChatVisibleSeconds { get; set; } = 5f;
+
+            [Description("Seconds team chat remains visible.")]
+            public float TeamChatVisibleSeconds { get; set; } = 5f;
+
+            [Description("Maximum global chat lines shown in the UI.")]
+            public int GlobalMaxVisibleMessages { get; set; } = 6;
+
+            [Description("Maximum team chat lines shown in the UI.")]
+            public int TeamMaxVisibleMessages { get; set; } = 6;
+
+            [Description("Maximum messages saved in the JSON database.")]
+            public int MaxStoredMessages { get; set; } = 500;
+
+            [Description("Global chat UI X coordinate.")]
+            public float GlobalXCoordinate { get; set; } = -850f;
+
+            [Description("Global chat UI Y coordinate.")]
+            public float GlobalYCoordinate { get; set; } = 120f;
+
+            [Description("Team chat UI X coordinate.")]
+            public float TeamXCoordinate { get; set; } = -1030f;
+
+            [Description("Team chat UI Y coordinate.")]
+            public float TeamYCoordinate { get; set; } = 230f;
+
+            [Description("Blocked words. Messages containing these words will be rejected.")]
+            public List<string> BlockedWords { get; set; } = new List<string>();
+
+            [Description("Log accepted chat messages to server console.")]
+            public bool LogChatMessages { get; set; } = true;
+
+            [Description("Log messages rejected by the blocked-word system to server console.")]
+            public bool LogBlockedMessages { get; set; } = true;
+
+            [Description("Log chat UI refresh diagnostics to server console.")]
+            public bool LogUiDebug { get; set; } = false;
+
+            [Description("Team colors used by chat templates.")]
+            public List<TeamChatColor> TeamColors { get; set; } = new List<TeamChatColor>
+            {
+                new TeamChatColor { Team = "SCPs", Color = "#FF4040" },
+                new TeamChatColor { Team = "FoundationForces", Color = "#6699FF" },
+                new TeamChatColor { Team = "ChaosInsurgency", Color = "#32CD32" },
+                new TeamChatColor { Team = "Scientists", Color = "#FFD700" },
+                new TeamChatColor { Team = "ClassD", Color = "#FF8C00" },
+                new TeamChatColor { Team = "Dead", Color = "#B0B0B0" },
+                new TeamChatColor { Team = "OtherAlive", Color = "#FFFFFF" },
+            };
+        }
+
+        public class TeamChatColor
+        {
+            public string Team { get; set; } = "OtherAlive";
+            public string Color { get; set; } = "#FFFFFF";
+        }
+
+        public class DamageManagerConfigClass
+        {
+            public List<DamageType> DisabledDamageTypes { get; set; } = new List<DamageType>
+            {
+                DamageType.Scp207,
+                DamageType.Scp1509
+            };
+        }
+
+        public class SurrenderConfigClass
+        {
+            [Description("Enable surrender module.")]
+            public bool IsEnabled { get; set; } = true;
+
         }
     }
 }

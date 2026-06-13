@@ -93,7 +93,7 @@ namespace SGJ_Plugin.Modules
                 {
                     name = player.Nickname ?? string.Empty,
                     rankname = string.Empty,
-                    rankcolor = _config.TitleSystemConfig.DefaultRankColor ?? string.Empty,
+                    rankcolor = string.Empty,
                 };
                 SaveData();
                 return;
@@ -262,7 +262,27 @@ namespace SGJ_Plugin.Modules
                 fileName += ".json";
 
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "EXILED", "Config", fileName);
+            string newPath = Path.Combine(appData, "EXILED", "Configs", fileName);
+            string oldPath = Path.Combine(appData, "EXILED", "Config", fileName);
+            TryMigrateDataFile(oldPath, newPath);
+            TryMigrateDataFile(Path.Combine(appData, "EXILED", "Config", "SGJ_TitleSystem.json"), newPath);
+            return newPath;
+        }
+
+        private void TryMigrateDataFile(string oldPath, string newPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(oldPath) || string.IsNullOrWhiteSpace(newPath) || File.Exists(newPath) || !File.Exists(oldPath))
+                    return;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(newPath));
+                File.Copy(oldPath, newPath, false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[{Name}] Failed to migrate data file '{oldPath}' to '{newPath}': {ex.Message}");
+            }
         }
 
         private static string GetPlayerKey(Player player)

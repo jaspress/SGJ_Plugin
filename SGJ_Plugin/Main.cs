@@ -92,12 +92,23 @@ namespace SGJ_Plugin
             // 添加保安下班模块
             _modules.Add(new GuardOffDutyModule(Config));
 
+            // 添加聊天UI模块
+            _modules.Add(new ChatModule(Config));
+
             // 添加称号系统模块
             _modules.Add(new TitleModule(Config));
 
             // 添加等级系统模块
             _modules.Add(new LevelModule(Config));
 
+            // 添加观察者HUD模块
+            _modules.Add(new SpectatorHudModule(Config));
+
+            // 添加伤害管理模块
+            _modules.Add(new DamageManagerModule(Config));
+
+            // 添加投降模块
+            _modules.Add(new SurrenderModule(Config));
             // 在这里可以添加其他模块
         }
     }

@@ -1,8 +1,11 @@
-﻿using Exiled.API.Features;
 using Exiled.Events.EventArgs.Player;
+using Exiled.API.Extensions;
+using Exiled.API.Features;
+using Exiled.API.Features.Roles;
 using HintServiceMeow.Core.Enum;
 using MEC;
 using Newtonsoft.Json;
+using PlayerRoles;
 using SGJ_Plugin.UI.Elements;
 using SGJ_Plugin.UI.Managers;
 using System;
@@ -22,6 +25,8 @@ namespace SGJ_Plugin.Modules
         private CoroutineHandle _reloadCoroutine;
         private bool _reloadCoroutineStarted;
 
+        public static LevelModule Instance { get; private set; }
+
         public override string Name => "Level System Module";
 
         public LevelModule(Config config)
@@ -31,6 +36,8 @@ namespace SGJ_Plugin.Modules
 
         protected override void OnEnable()
         {
+            Instance = this;
+
             if (!_config.LevelSystemConfig.IsEnabled)
             {
                 Log.Info($"[{Name}] Disabled by config.");
@@ -77,6 +84,9 @@ namespace SGJ_Plugin.Modules
             }
 
             _playerPanels.Clear();
+            if (Instance == this)
+                Instance = null;
+
             Log.Info($"[{Name}] Disabled.");
         }
 
@@ -192,7 +202,7 @@ namespace SGJ_Plugin.Modules
             element.XCoordinate = Clamp(_config.LevelSystemConfig.HudXCoordinate, -1100f, 1100f);
             element.YCoordinate = Clamp(_config.LevelSystemConfig.HudYCoordinate, 0f, 1030f);
             element.FontSize = Math.Max(8, Math.Min(60, _config.LevelSystemConfig.HudFontSize));
-            element.Content = BuildHudText(player, GetData(player, false));
+            element.Content = BuildViewerHudText(player);
             element.Update();
 
             _uiManager.ShowPanel(player, panelId);
@@ -217,7 +227,7 @@ namespace SGJ_Plugin.Modules
                 return;
             }
 
-            element.Content = BuildHudText(player, GetData(player, false));
+            element.Content = BuildViewerHudText(player);
             element.Update();
             _uiManager.ShowPanel(player, panelId);
         }
@@ -287,7 +297,7 @@ namespace SGJ_Plugin.Modules
                 data = new PlayerLevelData
                 {
                     name = player.Nickname ?? string.Empty,
-                    rankname = GetRankNameForLevel(1),
+                    rankname = string.Empty,
                 };
 
                 _levelData[key] = data;
@@ -432,25 +442,9 @@ namespace SGJ_Plugin.Modules
                 changed = true;
             }
 
-            if (!string.IsNullOrWhiteSpace(data.title) && string.IsNullOrWhiteSpace(data.rankname))
+            if (data.rankname == null)
             {
-                data.rankname = data.title;
-                changed = true;
-            }
-
-            if (_config.LevelSystemConfig.AutoUpdateRankNameByLevel)
-            {
-                string expectedRankName = GetRankNameForLevel(data.level);
-                if (data.rankname != expectedRankName)
-                {
-                    data.rankname = expectedRankName;
-                    changed = true;
-                }
-            }
-
-            if (string.IsNullOrWhiteSpace(data.rankname))
-            {
-                data.rankname = _config.LevelSystemConfig.DefaultRankName ?? string.Empty;
+                data.rankname = string.Empty;
                 changed = true;
             }
 
@@ -482,6 +476,46 @@ namespace SGJ_Plugin.Modules
             return RenderTemplate(_config.LevelSystemConfig.HudText, player, data, 0, string.Empty);
         }
 
+        public string BuildHudTextFor(Player target, bool includeRoleLine = true)
+        {
+            PlayerLevelData data = GetData(target, false);
+            string rendered = RenderTemplate(_config.LevelSystemConfig.HudText, target, data, 0, string.Empty);
+            return includeRoleLine ? rendered : RemoveRoleLine(rendered);
+        }
+
+        private string BuildViewerHudText(Player viewer)
+        {
+            if (viewer == null)
+                return string.Empty;
+
+            if (viewer.Role.Type == RoleTypeId.Spectator)
+            {
+                Player observed = GetObservedPlayer(viewer);
+                if (_config.SpectatorHudConfig.ShowObservedPlayerLevelHud && observed != null)
+                    return BuildHudTextFor(observed, false);
+
+                return BuildHudTextFor(viewer, false);
+            }
+
+            return BuildHudTextFor(viewer, true);
+        }
+
+        private static Player GetObservedPlayer(Player spectator)
+        {
+            if (spectator == null || spectator.Role.Type != RoleTypeId.Spectator)
+                return null;
+
+            try
+            {
+                SpectatorRole spectatorRole = spectator.Role.As<SpectatorRole>();
+                return spectatorRole?.SpectatedPlayer;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         private string RenderTemplate(string template, Player player, PlayerLevelData data, int gainedXp, string reason, bool useRichLevelRankName = true)
         {
             if (string.IsNullOrEmpty(template))
@@ -495,7 +529,11 @@ namespace SGJ_Plugin.Modules
             string displayLevelRankName = useRichLevelRankName ? Colorize(levelRankName, levelRankColor) : levelRankName;
             string titleRankName = TitleModule.Instance?.GetOverrideRankName(key) ?? string.Empty;
             string titleColor = TitleModule.Instance?.GetOverrideRankColor(key) ?? string.Empty;
-            string effectiveRankName = GetEffectiveRankName(key, data);
+            string effectiveTitleName = GetEffectiveTitleName(key);
+            string roleName = player == null || player.Role.Type == RoleTypeId.Spectator
+                ? string.Empty
+                : GetChineseRoleName(player.Role.Type);
+            string roleColor = GetRoleColor(player);
 
             return template
                 .Replace("{name}", data.name ?? string.Empty)
@@ -504,8 +542,8 @@ namespace SGJ_Plugin.Modules
                 .Replace("{xp}", data.xp.ToString())
                 .Replace("{required_xp}", required.ToString())
                 .Replace("{total_xp}", data.total_xp.ToString())
-                .Replace("{title}", effectiveRankName)
-                .Replace("{rankname}", effectiveRankName)
+                .Replace("{title}", effectiveTitleName)
+                .Replace("{rankname}", effectiveTitleName)
                 .Replace("{level_rankname}", displayLevelRankName)
                 .Replace("{level_rankname_raw}", levelRankName)
                 .Replace("{level_rankcolor}", levelRankColor)
@@ -517,7 +555,51 @@ namespace SGJ_Plugin.Modules
                 .Replace("{deaths}", data.deaths.ToString())
                 .Replace("{escapes}", data.escapes.ToString())
                 .Replace("{gained_xp}", gainedXp.ToString())
-                .Replace("{reason}", reason ?? string.Empty);
+                .Replace("{reason}", reason ?? string.Empty)
+                .Replace("{role_name}", roleName)
+                .Replace("{rolecolor}", roleColor)
+                .Replace("{role_color}", roleColor)
+                .Replace("{role}", player?.Role.Type.ToString() ?? string.Empty);
+        }
+
+        private string GetRoleColor(Player player)
+        {
+            if (player == null)
+                return "#FFFFFF";
+
+            List<Config.TeamChatColor> colors = _config.ChatConfig?.TeamColors;
+            if (colors != null)
+            {
+                string teamName = player.Role.Team.ToString();
+                foreach (Config.TeamChatColor color in colors)
+                {
+                    if (color == null || string.IsNullOrWhiteSpace(color.Team))
+                        continue;
+
+                    if (string.Equals(color.Team, teamName, StringComparison.OrdinalIgnoreCase))
+                        return string.IsNullOrWhiteSpace(color.Color) ? "#FFFFFF" : color.Color;
+                }
+            }
+
+            return "#FFFFFF";
+        }
+
+        private static string RemoveRoleLine(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            string[] lines = text.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n');
+            List<string> keptLines = new List<string>();
+            foreach (string line in lines)
+            {
+                if (line.IndexOf("你正在扮演", StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+
+                keptLines.Add(line);
+            }
+
+            return string.Join("\n", keptLines);
         }
 
         private void UpdateDisplayNickname(Player player)
@@ -562,8 +644,8 @@ namespace SGJ_Plugin.Modules
 
             try
             {
-                PlayerLevelData data = GetData(player, false);
-                player.RankName = GetEffectiveRankName(GetPlayerKey(player), data);
+                string titleRankName = TitleModule.Instance?.GetOverrideRankName(GetPlayerKey(player)) ?? string.Empty;
+                player.RankName = string.IsNullOrWhiteSpace(titleRankName) ? null : titleRankName;
             }
             catch (Exception ex)
             {
@@ -732,13 +814,66 @@ namespace SGJ_Plugin.Modules
             return $"<color={color}>{text}</color>";
         }
 
-        private string GetEffectiveRankName(string steamId, PlayerLevelData data)
+        private string GetEffectiveTitleName(string steamId)
         {
             string overrideRankName = TitleModule.Instance?.GetOverrideRankName(steamId);
             if (!string.IsNullOrWhiteSpace(overrideRankName))
                 return overrideRankName;
 
-            return data == null ? string.Empty : GetRankNameForLevel(data.level);
+            return "无";
+        }
+
+        private static string GetChineseRoleName(RoleTypeId role)
+        {
+            switch (role)
+            {
+                case RoleTypeId.ClassD:
+                    return "D级人员";
+                case RoleTypeId.Scientist:
+                    return "科学家";
+                case RoleTypeId.FacilityGuard:
+                    return "设施保安";
+                case RoleTypeId.NtfPrivate:
+                    return "九尾狐列兵";
+                case RoleTypeId.NtfSergeant:
+                    return "九尾狐中士";
+                case RoleTypeId.NtfCaptain:
+                    return "九尾狐队长";
+                case RoleTypeId.NtfSpecialist:
+                    return "九尾狐收容专家";
+                case RoleTypeId.ChaosConscript:
+                    return "混沌分裂者征召兵";
+                case RoleTypeId.ChaosRifleman:
+                    return "混沌分裂者步枪手";
+                case RoleTypeId.ChaosRepressor:
+                    return "混沌分裂者压制者";
+                case RoleTypeId.ChaosMarauder:
+                    return "混沌分裂者掠夺者";
+                case RoleTypeId.Scp049:
+                    return "SCP-049";
+                case RoleTypeId.Scp0492:
+                    return "SCP-049-2";
+                case RoleTypeId.Scp079:
+                    return "SCP-079";
+                case RoleTypeId.Scp096:
+                    return "SCP-096";
+                case RoleTypeId.Scp106:
+                    return "SCP-106";
+                case RoleTypeId.Scp173:
+                    return "SCP-173";
+                case RoleTypeId.Scp939:
+                    return "SCP-939";
+                case RoleTypeId.Tutorial:
+                    return "教程角色";
+                case RoleTypeId.Spectator:
+                    return "观察者";
+                case RoleTypeId.Overwatch:
+                    return "监督者";
+                case RoleTypeId.None:
+                    return "无";
+                default:
+                    return role.ToString();
+            }
         }
 
         private int GetMaxLevel()
@@ -769,7 +904,27 @@ namespace SGJ_Plugin.Modules
                 fileName += ".json";
 
             string appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-            return Path.Combine(appData, "EXILED", "Config", fileName);
+            string newPath = Path.Combine(appData, "EXILED", "Configs", fileName);
+            string oldPath = Path.Combine(appData, "EXILED", "Config", fileName);
+            TryMigrateDataFile(oldPath, newPath);
+            TryMigrateDataFile(Path.Combine(appData, "EXILED", "Config", "SGJ_LevelSystem.json"), newPath);
+            return newPath;
+        }
+
+        private void TryMigrateDataFile(string oldPath, string newPath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(oldPath) || string.IsNullOrWhiteSpace(newPath) || File.Exists(newPath) || !File.Exists(oldPath))
+                    return;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(newPath));
+                File.Copy(oldPath, newPath, false);
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"[{Name}] Failed to migrate data file '{oldPath}' to '{newPath}': {ex.Message}");
+            }
         }
 
         private void TryBackupBrokenDataFile()

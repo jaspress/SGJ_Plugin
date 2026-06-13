@@ -40,10 +40,11 @@ namespace SGJ_Plugin.UI.Core
                 element.Update();
                 AbstractHint hint = element.GetHintObject();
                 if (hints.Contains(hint))
-                    continue;
+                    display.RemoveHint(hint, GroupName);
+                else
+                    hints.Add(hint);
 
                 display.AddHint(hint, GroupName);
-                hints.Add(hint);
             }
 
             display.ForceUpdate(true);
@@ -68,6 +69,8 @@ namespace SGJ_Plugin.UI.Core
 
             if (shownHints.Count == 0)
                 _playerHints.Remove(key);
+
+            display.ForceUpdate(true);
         }
 
         public void Clear(Player player)
@@ -84,6 +87,7 @@ namespace SGJ_Plugin.UI.Core
                 display.RemoveHint(hint, GroupName);
 
             _playerHints.Remove(key);
+            display.ForceUpdate(true);
         }
 
         public void Forget(Player player)
