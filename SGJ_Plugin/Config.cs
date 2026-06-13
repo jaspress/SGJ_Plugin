@@ -14,6 +14,12 @@ namespace SGJ_Plugin
         [Description("Enable debug logs.")]
         public bool Debug { get; set; } = false;
 
+        [Description("Show Server name(title)")]
+        public string ShowServerName { get; set; } = "诗歌剧服务器";
+
+        [Description("Misc helper and welcome settings.")]
+        public MiscConfigClass MiscConfig { get; set; } = new MiscConfigClass();
+
         [Description("Gun infinite ammo module settings.")]
         public InfiniteAmmoConfigClass InfiniteAmmoConfig { get; set; } = new InfiniteAmmoConfigClass();
 
@@ -57,6 +63,33 @@ namespace SGJ_Plugin
 
             [Description("Excluded gun item type names.")]
             public List<string> ExcludedGuns { get; set; } = new List<string>();
+        }
+
+        public class MiscConfigClass
+        {
+            [Description("Enable miscellaneous helper features in Main.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("Show welcome messages when a player joins.")]
+            public bool WelcomeEnabled { get; set; } = true;
+
+            [Description("Send the private welcome top-right hint to the joining player.")]
+            public bool PrivateWelcomeEnabled { get; set; } = true;
+
+            [Description("Send the public welcome broadcast to all players.")]
+            public bool PublicWelcomeBroadcastEnabled { get; set; } = true;
+
+            [Description("Private welcome text. Placeholders: {ev.Player.Nickname}, {player_name}, {name}, {Config.ShowServerName}, {server_name}.")]
+            public string PrivateWelcomeText { get; set; } = "<b><size=20><color=#7FFFD4>[私人信息]欢迎<color=#90EE90>{ev.Player.Nickname}</color>!</color></size></b>";
+
+            [Description("Public welcome broadcast text. Placeholders: {ev.Player.Nickname}, {player_name}, {name}, {Config.ShowServerName}, {server_name}.")]
+            public string PublicWelcomeBroadcastText { get; set; } = "<b><size=25><color=#7FFFD4>[公告📢]欢迎<color=#90EE90>{ev.Player.Nickname}</color>加入{Config.ShowServerName}!</color></size></b>";
+
+            [Description("Private welcome hint duration in seconds.")]
+            public float PrivateWelcomeDuration { get; set; } = 5f;
+
+            [Description("Public welcome broadcast duration in seconds.")]
+            public float PublicWelcomeBroadcastDuration { get; set; } = 5f;
         }
 
         public class GuardOffDutyConfigClass

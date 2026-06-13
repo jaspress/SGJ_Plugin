@@ -4,6 +4,7 @@ using HintServiceMeow.Core.Enum;
 using MEC;
 using Newtonsoft.Json;
 using PlayerRoles;
+using PluginHelper = SGJ_Plugin.Helper.Helper;
 using SGJ_Plugin.UI.Elements;
 using SGJ_Plugin.UI.Managers;
 using System;
@@ -371,7 +372,7 @@ namespace SGJ_Plugin.Modules
                 Team = sender.Role.Team.ToString(),
                 TeamColor = GetTeamColor(sender.Role.Team),
                 Role = sender.Role.Type.ToString(),
-                RoleName = LevelModule.GetChineseRoleName(sender.Role.Type),
+                RoleName = PluginHelper.GetChineseRoleName(sender.Role.Type),
                 Content = content,
             };
         }

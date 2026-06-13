@@ -6,6 +6,7 @@ using HintServiceMeow.Core.Enum;
 using MEC;
 using Newtonsoft.Json;
 using PlayerRoles;
+using PluginHelper = SGJ_Plugin.Helper.Helper;
 using SGJ_Plugin.UI.Elements;
 using SGJ_Plugin.UI.Managers;
 using System;
@@ -18,13 +19,11 @@ namespace SGJ_Plugin.Modules
     public class LevelModule : ModuleBase
     {
         private const string LevelHudElementId = "level_hud";
-        private const string ExperienceHintElementId = "level_exp_hint";
 
         private readonly Config _config;
         private readonly Dictionary<string, PlayerLevelData> _levelData = new Dictionary<string, PlayerLevelData>();
         private readonly Dictionary<string, string> _playerPanels = new Dictionary<string, string>();
         private readonly Dictionary<string, Dictionary<string, AssistDamageInfo>> _assistDamage = new Dictionary<string, Dictionary<string, AssistDamageInfo>>();
-        private readonly Dictionary<string, List<TopRightHintMessage>> _topRightHints = new Dictionary<string, List<TopRightHintMessage>>();
         private UIManager _uiManager;
         private string _dataFilePath;
         private CoroutineHandle _reloadCoroutine;
@@ -92,7 +91,6 @@ namespace SGJ_Plugin.Modules
 
             _playerPanels.Clear();
             _assistDamage.Clear();
-            _topRightHints.Clear();
             if (Instance == this)
                 Instance = null;
 
@@ -218,11 +216,11 @@ namespace SGJ_Plugin.Modules
 
             if (leveledUp)
             {
-                ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.LevelUpText, player, data, amount, reason), 4f);
+                PluginHelper.ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.LevelUpText, player, data, amount, reason), 4f);
             }
             else if (!string.IsNullOrEmpty(reason))
             {
-                ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.ExperienceGainText, player, data, amount, reason), 2.5f);
+                PluginHelper.ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.ExperienceGainText, player, data, amount, reason), 2.5f);
             }
         }
 
@@ -241,14 +239,6 @@ namespace SGJ_Plugin.Modules
             {
                 element = _uiManager.CreateTextHint(panelId, LevelHudElementId, string.Empty);
                 element.Alignment = HintAlignment.Center;
-            }
-
-            TextHintElement experienceElement = panel.GetElement(ExperienceHintElementId) as TextHintElement;
-            if (experienceElement == null)
-            {
-                experienceElement = _uiManager.CreateTextHint(panelId, ExperienceHintElementId, string.Empty);
-                experienceElement.Alignment = HintAlignment.Right;
-                experienceElement.IsVisible = false;
             }
 
             element.XCoordinate = Clamp(_config.LevelSystemConfig.HudXCoordinate, -1100f, 1100f);
@@ -590,77 +580,6 @@ namespace SGJ_Plugin.Modules
                 attackers.Remove(key);
         }
 
-        public void ShowTopRightHint(Player player, string text, float duration)
-        {
-            if (player == null || _uiManager == null || string.IsNullOrWhiteSpace(text))
-                return;
-
-            string key = GetPlayerKey(player);
-            if (!_topRightHints.TryGetValue(key, out List<TopRightHintMessage> messages))
-            {
-                messages = new List<TopRightHintMessage>();
-                _topRightHints[key] = messages;
-            }
-
-            DateTime now = DateTime.UtcNow;
-            messages.RemoveAll(message => message.ExpireAt <= now);
-            messages.Insert(0, new TopRightHintMessage
-            {
-                Text = text,
-                ExpireAt = now.AddSeconds(Math.Max(0.5f, duration)),
-            });
-
-            RefreshTopRightHint(player);
-        }
-
-        private void RefreshTopRightHint(Player player)
-        {
-            if (player == null || _uiManager == null)
-                return;
-
-            string key = GetPlayerKey(player);
-            if (!_topRightHints.TryGetValue(key, out List<TopRightHintMessage> messages))
-                messages = new List<TopRightHintMessage>();
-
-            DateTime now = DateTime.UtcNow;
-            messages.RemoveAll(message => message.ExpireAt <= now);
-
-            string panelId = GetPanelId(key);
-            _playerPanels[key] = panelId;
-
-            UIPanel panel = _uiManager.CreatePanel(panelId, "Level HUD");
-            TextHintElement element = panel.GetElement(ExperienceHintElementId) as TextHintElement;
-            if (element == null)
-            {
-                element = _uiManager.CreateTextHint(panelId, ExperienceHintElementId, string.Empty);
-                element.Alignment = HintAlignment.Right;
-            }
-
-            element.Alignment = HintAlignment.Right;
-            element.XCoordinate = Clamp(_config.LevelSystemConfig.ExperienceHintXCoordinate, -1100f, 1100f);
-            element.YCoordinate = Clamp(_config.LevelSystemConfig.ExperienceHintYCoordinate, 0f, 1030f);
-            element.FontSize = Math.Max(8, Math.Min(60, _config.LevelSystemConfig.ExperienceHintFontSize));
-            element.Content = BuildTopRightHintText(messages, now);
-            element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
-            element.Update();
-            _uiManager.ShowPanel(player, panelId);
-        }
-
-        private static string BuildTopRightHintText(List<TopRightHintMessage> messages, DateTime now)
-        {
-            if (messages == null || messages.Count == 0)
-                return string.Empty;
-
-            List<string> lines = new List<string>();
-            foreach (TopRightHintMessage message in messages)
-            {
-                int seconds = Math.Max(0, (int)Math.Ceiling((message.ExpireAt - now).TotalSeconds));
-                lines.Add($"[{seconds}s] {message.Text}");
-            }
-
-            return string.Join("\n", lines);
-        }
-
         private string BuildHudText(Player player, PlayerLevelData data)
         {
             return RenderTemplate(_config.LevelSystemConfig.HudText, player, data, 0, string.Empty);
@@ -727,7 +646,7 @@ namespace SGJ_Plugin.Modules
             string effectiveTitleName = GetEffectiveTitleName(key);
             string roleName = player == null || player.Role.Type == RoleTypeId.Spectator
                 ? string.Empty
-                : GetChineseRoleName(player.Role.Type);
+                : PluginHelper.GetChineseRoleName(player.Role.Type);
             string roleColor = GetRoleColor(player);
 
             return template
@@ -952,7 +871,6 @@ namespace SGJ_Plugin.Modules
                 foreach (Player player in Player.List)
                 {
                     ApplyPlayerVisuals(player);
-                    RefreshTopRightHint(player);
                 }
             }
             catch (Exception ex)
@@ -1019,69 +937,6 @@ namespace SGJ_Plugin.Modules
                 return overrideRankName;
 
             return "无";
-        }
-
-        internal static string GetChineseRoleName(RoleTypeId role)
-        {
-            switch (role)
-            {
-                case RoleTypeId.ClassD:
-                    return "D级人员";
-                case RoleTypeId.Scientist:
-                    return "科学家";
-                case RoleTypeId.FacilityGuard:
-                    return "设施保安";
-                case RoleTypeId.NtfPrivate:
-                    return "MTF列兵";
-                case RoleTypeId.NtfSergeant:
-                    return "MTF中士";
-                case RoleTypeId.NtfCaptain:
-                    return "MTF指挥官";
-                case RoleTypeId.NtfSpecialist:
-                    return "MTF收容专家";
-                case RoleTypeId.ChaosConscript:
-                    return "混沌分裂者征召兵";
-                case RoleTypeId.ChaosRifleman:
-                    return "混沌分裂者步枪手";
-                case RoleTypeId.ChaosRepressor:
-                    return "混沌分裂者压制者";
-                case RoleTypeId.ChaosMarauder:
-                    return "混沌分裂者掠夺者";
-                case RoleTypeId.Flamingo:
-                    return "火烈鸟";
-                case RoleTypeId.ZombieFlamingo:
-                    return "僵尸火烈鸟";
-                case RoleTypeId.Scp3114:
-                    return "SCP-3114";
-                case RoleTypeId.Scp049:
-                    return "SCP-049";
-                case RoleTypeId.Scp0492:
-                    return "SCP-049-2";
-                case RoleTypeId.Scp079:
-                    return "SCP-079";
-                case RoleTypeId.Scp096:
-                    return "SCP-096";
-                case RoleTypeId.Scp106:
-                    return "SCP-106";
-                case RoleTypeId.Scp173:
-                    return "SCP-173";
-                case RoleTypeId.Scp939:
-                    return "SCP-939";
-                case RoleTypeId.Destroyed:
-                    return "已销毁";
-                case RoleTypeId.CustomRole:
-                    return "自定义角色";
-                case RoleTypeId.Tutorial:
-                    return "教程角色";
-                case RoleTypeId.Spectator:
-                    return "观察者";
-                case RoleTypeId.Overwatch:
-                    return "监督者";
-                case RoleTypeId.None:
-                    return "无";
-                default:
-                    return role.ToString();
-            }
         }
 
         private int GetMaxLevel()
@@ -1204,10 +1059,5 @@ namespace SGJ_Plugin.Modules
             public DateTime LastDamageAt { get; set; }
         }
 
-        private class TopRightHintMessage
-        {
-            public string Text { get; set; } = string.Empty;
-            public DateTime ExpireAt { get; set; }
-        }
     }
 }
