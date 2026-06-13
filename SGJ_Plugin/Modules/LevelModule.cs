@@ -17,9 +17,14 @@ namespace SGJ_Plugin.Modules
 {
     public class LevelModule : ModuleBase
     {
+        private const string LevelHudElementId = "level_hud";
+        private const string ExperienceHintElementId = "level_exp_hint";
+
         private readonly Config _config;
         private readonly Dictionary<string, PlayerLevelData> _levelData = new Dictionary<string, PlayerLevelData>();
         private readonly Dictionary<string, string> _playerPanels = new Dictionary<string, string>();
+        private readonly Dictionary<string, Dictionary<string, AssistDamageInfo>> _assistDamage = new Dictionary<string, Dictionary<string, AssistDamageInfo>>();
+        private readonly Dictionary<string, List<TopRightHintMessage>> _topRightHints = new Dictionary<string, List<TopRightHintMessage>>();
         private UIManager _uiManager;
         private string _dataFilePath;
         private CoroutineHandle _reloadCoroutine;
@@ -53,6 +58,7 @@ namespace SGJ_Plugin.Modules
 
             CustomPlayerEvents.Verified += OnVerified;
             CustomPlayerEvents.Left += OnLeft;
+            CustomPlayerEvents.Hurt += OnHurt;
             CustomPlayerEvents.Died += OnDied;
             CustomPlayerEvents.Escaped += OnEscaped;
             StartReloadCoroutine();
@@ -70,6 +76,7 @@ namespace SGJ_Plugin.Modules
         {
             CustomPlayerEvents.Verified -= OnVerified;
             CustomPlayerEvents.Left -= OnLeft;
+            CustomPlayerEvents.Hurt -= OnHurt;
             CustomPlayerEvents.Died -= OnDied;
             CustomPlayerEvents.Escaped -= OnEscaped;
             StopReloadCoroutine();
@@ -84,6 +91,8 @@ namespace SGJ_Plugin.Modules
             }
 
             _playerPanels.Clear();
+            _assistDamage.Clear();
+            _topRightHints.Clear();
             if (Instance == this)
                 Instance = null;
 
@@ -112,6 +121,37 @@ namespace SGJ_Plugin.Modules
 
             ResetPlayerVisuals(ev.Player);
             ForgetHud(ev.Player);
+            RemoveAssistData(ev.Player);
+        }
+
+        private void OnHurt(HurtEventArgs ev)
+        {
+            if (!_config.LevelSystemConfig.AssistExperienceEnabled || ev?.Player == null || ev.Attacker == null)
+                return;
+
+            if (ev.Attacker == ev.Player || ev.Amount <= 0f)
+                return;
+
+            string victimKey = GetPlayerKey(ev.Player);
+            string attackerKey = GetPlayerKey(ev.Attacker);
+            if (string.IsNullOrWhiteSpace(victimKey) || string.IsNullOrWhiteSpace(attackerKey))
+                return;
+
+            if (!_assistDamage.TryGetValue(victimKey, out Dictionary<string, AssistDamageInfo> attackers))
+            {
+                attackers = new Dictionary<string, AssistDamageInfo>();
+                _assistDamage[victimKey] = attackers;
+            }
+
+            if (!attackers.TryGetValue(attackerKey, out AssistDamageInfo info))
+            {
+                info = new AssistDamageInfo { Attacker = ev.Attacker };
+                attackers[attackerKey] = info;
+            }
+
+            info.Attacker = ev.Attacker;
+            info.Damage += ev.Amount;
+            info.LastDamageAt = DateTime.UtcNow;
         }
 
         private void OnDied(DiedEventArgs ev)
@@ -124,12 +164,16 @@ namespace SGJ_Plugin.Modules
             AddExperience(ev.Player, _config.LevelSystemConfig.DeathExperience, null);
 
             Player attacker = ev.Attacker;
+            int killExperience = GetKillExperienceForRole(ev.TargetOldRole);
             if (attacker != null && attacker != ev.Player)
             {
                 PlayerLevelData killer = GetData(attacker);
                 killer.kills++;
-                AddExperience(attacker, _config.LevelSystemConfig.KillExperience, "Kill");
+                AddExperience(attacker, killExperience, "Kill");
             }
+
+            AwardAssistExperience(ev.Player, attacker, killExperience);
+            RemoveAssistData(ev.Player);
 
             SaveData();
             ApplyPlayerVisuals(ev.Player);
@@ -174,11 +218,11 @@ namespace SGJ_Plugin.Modules
 
             if (leveledUp)
             {
-                player.ShowHint(RenderTemplate(_config.LevelSystemConfig.LevelUpText, player, data, amount, reason), 4f);
+                ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.LevelUpText, player, data, amount, reason), 4f);
             }
             else if (!string.IsNullOrEmpty(reason))
             {
-                player.ShowHint(RenderTemplate(_config.LevelSystemConfig.ExperienceGainText, player, data, amount, reason), 2.5f);
+                ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.ExperienceGainText, player, data, amount, reason), 2.5f);
             }
         }
 
@@ -192,11 +236,19 @@ namespace SGJ_Plugin.Modules
             _playerPanels[key] = panelId;
 
             UIPanel panel = _uiManager.CreatePanel(panelId, "Level HUD");
-            TextHintElement element = panel.GetElement("level_hud") as TextHintElement;
+            TextHintElement element = panel.GetElement(LevelHudElementId) as TextHintElement;
             if (element == null)
             {
-                element = _uiManager.CreateTextHint(panelId, "level_hud", string.Empty);
+                element = _uiManager.CreateTextHint(panelId, LevelHudElementId, string.Empty);
                 element.Alignment = HintAlignment.Center;
+            }
+
+            TextHintElement experienceElement = panel.GetElement(ExperienceHintElementId) as TextHintElement;
+            if (experienceElement == null)
+            {
+                experienceElement = _uiManager.CreateTextHint(panelId, ExperienceHintElementId, string.Empty);
+                experienceElement.Alignment = HintAlignment.Right;
+                experienceElement.IsVisible = false;
             }
 
             element.XCoordinate = Clamp(_config.LevelSystemConfig.HudXCoordinate, -1100f, 1100f);
@@ -220,7 +272,7 @@ namespace SGJ_Plugin.Modules
                 return;
             }
 
-            TextHintElement element = _uiManager.GetElement(panelId, "level_hud") as TextHintElement;
+            TextHintElement element = _uiManager.GetElement(panelId, LevelHudElementId) as TextHintElement;
             if (element == null)
             {
                 CreateOrRefreshHud(player);
@@ -469,6 +521,144 @@ namespace SGJ_Plugin.Modules
             }
 
             return Math.Max(1, level * 100);
+        }
+
+        private int GetKillExperienceForRole(RoleTypeId role)
+        {
+            List<Config.RoleExperienceReward> rewards = _config.LevelSystemConfig.KillExperienceByRole;
+            if (rewards != null)
+            {
+                string roleName = role.ToString();
+                foreach (Config.RoleExperienceReward reward in rewards)
+                {
+                    if (reward == null || string.IsNullOrWhiteSpace(reward.Role))
+                        continue;
+
+                    if (string.Equals(reward.Role, roleName, StringComparison.OrdinalIgnoreCase))
+                        return Math.Max(0, reward.Experience);
+                }
+            }
+
+            return Math.Max(0, _config.LevelSystemConfig.KillExperience);
+        }
+
+        private void AwardAssistExperience(Player victim, Player killer, int killExperience)
+        {
+            if (!_config.LevelSystemConfig.AssistExperienceEnabled || victim == null || killExperience <= 0)
+                return;
+
+            string victimKey = GetPlayerKey(victim);
+            if (!_assistDamage.TryGetValue(victimKey, out Dictionary<string, AssistDamageInfo> attackers))
+                return;
+
+            DateTime now = DateTime.UtcNow;
+            float expireSeconds = Math.Max(1f, _config.LevelSystemConfig.AssistDamageExpireSeconds);
+            float minDamage = Math.Max(0f, _config.LevelSystemConfig.AssistMinimumDamage);
+            int assistExperience = Math.Max(0, (int)Math.Round(killExperience * Math.Max(0f, _config.LevelSystemConfig.AssistExperiencePercent)));
+            if (assistExperience <= 0)
+                return;
+
+            string killerKey = killer == null ? string.Empty : GetPlayerKey(killer);
+            foreach (KeyValuePair<string, AssistDamageInfo> pair in attackers)
+            {
+                AssistDamageInfo info = pair.Value;
+                if (info == null || info.Attacker == null)
+                    continue;
+
+                if (string.Equals(pair.Key, killerKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (info.Damage < minDamage)
+                    continue;
+
+                if ((now - info.LastDamageAt).TotalSeconds > expireSeconds)
+                    continue;
+
+                AddExperience(info.Attacker, assistExperience, "Assist");
+            }
+        }
+
+        private void RemoveAssistData(Player player)
+        {
+            if (player == null)
+                return;
+
+            string key = GetPlayerKey(player);
+            _assistDamage.Remove(key);
+
+            foreach (Dictionary<string, AssistDamageInfo> attackers in _assistDamage.Values)
+                attackers.Remove(key);
+        }
+
+        public void ShowTopRightHint(Player player, string text, float duration)
+        {
+            if (player == null || _uiManager == null || string.IsNullOrWhiteSpace(text))
+                return;
+
+            string key = GetPlayerKey(player);
+            if (!_topRightHints.TryGetValue(key, out List<TopRightHintMessage> messages))
+            {
+                messages = new List<TopRightHintMessage>();
+                _topRightHints[key] = messages;
+            }
+
+            DateTime now = DateTime.UtcNow;
+            messages.RemoveAll(message => message.ExpireAt <= now);
+            messages.Insert(0, new TopRightHintMessage
+            {
+                Text = text,
+                ExpireAt = now.AddSeconds(Math.Max(0.5f, duration)),
+            });
+
+            RefreshTopRightHint(player);
+        }
+
+        private void RefreshTopRightHint(Player player)
+        {
+            if (player == null || _uiManager == null)
+                return;
+
+            string key = GetPlayerKey(player);
+            if (!_topRightHints.TryGetValue(key, out List<TopRightHintMessage> messages))
+                messages = new List<TopRightHintMessage>();
+
+            DateTime now = DateTime.UtcNow;
+            messages.RemoveAll(message => message.ExpireAt <= now);
+
+            string panelId = GetPanelId(key);
+            _playerPanels[key] = panelId;
+
+            UIPanel panel = _uiManager.CreatePanel(panelId, "Level HUD");
+            TextHintElement element = panel.GetElement(ExperienceHintElementId) as TextHintElement;
+            if (element == null)
+            {
+                element = _uiManager.CreateTextHint(panelId, ExperienceHintElementId, string.Empty);
+                element.Alignment = HintAlignment.Right;
+            }
+
+            element.Alignment = HintAlignment.Right;
+            element.XCoordinate = Clamp(_config.LevelSystemConfig.ExperienceHintXCoordinate, -1100f, 1100f);
+            element.YCoordinate = Clamp(_config.LevelSystemConfig.ExperienceHintYCoordinate, 0f, 1030f);
+            element.FontSize = Math.Max(8, Math.Min(60, _config.LevelSystemConfig.ExperienceHintFontSize));
+            element.Content = BuildTopRightHintText(messages, now);
+            element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
+            element.Update();
+            _uiManager.ShowPanel(player, panelId);
+        }
+
+        private static string BuildTopRightHintText(List<TopRightHintMessage> messages, DateTime now)
+        {
+            if (messages == null || messages.Count == 0)
+                return string.Empty;
+
+            List<string> lines = new List<string>();
+            foreach (TopRightHintMessage message in messages)
+            {
+                int seconds = Math.Max(0, (int)Math.Ceiling((message.ExpireAt - now).TotalSeconds));
+                lines.Add($"[{seconds}s] {message.Text}");
+            }
+
+            return string.Join("\n", lines);
         }
 
         private string BuildHudText(Player player, PlayerLevelData data)
@@ -755,7 +945,10 @@ namespace SGJ_Plugin.Modules
                 LoadData();
 
                 foreach (Player player in Player.List)
+                {
                     ApplyPlayerVisuals(player);
+                    RefreshTopRightHint(player);
+                }
             }
             catch (Exception ex)
             {
@@ -823,7 +1016,7 @@ namespace SGJ_Plugin.Modules
             return "无";
         }
 
-        private static string GetChineseRoleName(RoleTypeId role)
+        internal static string GetChineseRoleName(RoleTypeId role)
         {
             switch (role)
             {
@@ -834,13 +1027,13 @@ namespace SGJ_Plugin.Modules
                 case RoleTypeId.FacilityGuard:
                     return "设施保安";
                 case RoleTypeId.NtfPrivate:
-                    return "九尾狐列兵";
+                    return "MTF列兵";
                 case RoleTypeId.NtfSergeant:
-                    return "九尾狐中士";
+                    return "MTF中士";
                 case RoleTypeId.NtfCaptain:
-                    return "九尾狐队长";
+                    return "MTF指挥官";
                 case RoleTypeId.NtfSpecialist:
-                    return "九尾狐收容专家";
+                    return "MTF收容专家";
                 case RoleTypeId.ChaosConscript:
                     return "混沌分裂者征召兵";
                 case RoleTypeId.ChaosRifleman:
@@ -849,6 +1042,12 @@ namespace SGJ_Plugin.Modules
                     return "混沌分裂者压制者";
                 case RoleTypeId.ChaosMarauder:
                     return "混沌分裂者掠夺者";
+                case RoleTypeId.Flamingo:
+                    return "火烈鸟";
+                case RoleTypeId.ZombieFlamingo:
+                    return "僵尸火烈鸟";
+                case RoleTypeId.Scp3114:
+                    return "SCP-3114";
                 case RoleTypeId.Scp049:
                     return "SCP-049";
                 case RoleTypeId.Scp0492:
@@ -863,6 +1062,10 @@ namespace SGJ_Plugin.Modules
                     return "SCP-173";
                 case RoleTypeId.Scp939:
                     return "SCP-939";
+                case RoleTypeId.Destroyed:
+                    return "已销毁";
+                case RoleTypeId.CustomRole:
+                    return "自定义角色";
                 case RoleTypeId.Tutorial:
                     return "教程角色";
                 case RoleTypeId.Spectator:
@@ -987,6 +1190,19 @@ namespace SGJ_Plugin.Modules
             {
                 return false;
             }
+        }
+
+        private class AssistDamageInfo
+        {
+            public Player Attacker { get; set; }
+            public float Damage { get; set; }
+            public DateTime LastDamageAt { get; set; }
+        }
+
+        private class TopRightHintMessage
+        {
+            public string Text { get; set; } = string.Empty;
+            public DateTime ExpireAt { get; set; }
         }
     }
 }

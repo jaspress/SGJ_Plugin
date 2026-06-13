@@ -17,7 +17,8 @@ namespace SGJ_Plugin.Modules
 {
     public class ChatModule : ModuleBase
     {
-        private const string ChatElementId = "chat_messages";
+        private const string GlobalElementId = "global_chat";
+        private const string TeamElementId = "team_chat";
         private static readonly Regex RichTextTagRegex = new Regex("<[^>]*>", RegexOptions.Compiled);
 
         private readonly Config _config;
@@ -115,12 +116,7 @@ namespace SGJ_Plugin.Modules
             AddRecord(record);
 
             string rendered = RenderTemplate(channel == ChatChannel.Global ? _config.ChatConfig.GlobalChatTemplate : _config.ChatConfig.TeamChatTemplate, record);
-            _activeMessages.Add(new ActiveChatMessage
-            {
-                Record = record,
-                RenderedText = rendered,
-                ExpireAt = DateTime.UtcNow.AddSeconds(GetVisibleSeconds(channel)),
-            });
+            AddActiveMessage(channel, record, rendered);
 
             RefreshAllHuds();
             Timing.CallDelayed(0.1f, RefreshAllHuds);
@@ -142,12 +138,7 @@ namespace SGJ_Plugin.Modules
             ChatRecord record = CreateRecord(sender, ChatChannel.Global, "聊天UI测试消息");
             record.Channel = ChatChannel.Global;
             string rendered = "<b><color=#00FFFF>[聊天系统]</color> 如果你能看到这行，聊天UI显示正常。</b>";
-            _activeMessages.Add(new ActiveChatMessage
-            {
-                Record = record,
-                RenderedText = rendered,
-                ExpireAt = DateTime.UtcNow.AddSeconds(Math.Max(10f, GetVisibleSeconds(ChatChannel.Global))),
-            });
+            AddActiveMessage(ChatChannel.Global, record, rendered, Math.Max(10f, GetVisibleSeconds(ChatChannel.Global)));
 
             CreateOrRefreshHud(sender);
             RefreshAllHuds();
@@ -184,11 +175,16 @@ namespace SGJ_Plugin.Modules
             _playerPanels[key] = panelId;
 
             UIPanel panel = _uiManager.CreatePanel(panelId, "Chat UI");
-            TextHintElement chatElement = panel.GetElement(ChatElementId) as TextHintElement;
-            if (chatElement == null)
-                chatElement = _uiManager.CreateTextHint(panelId, ChatElementId, string.Empty);
+            TextHintElement globalElement = panel.GetElement(GlobalElementId) as TextHintElement;
+            if (globalElement == null)
+                globalElement = _uiManager.CreateTextHint(panelId, GlobalElementId, string.Empty);
 
-            ConfigureElement(chatElement, _config.ChatConfig.GlobalXCoordinate, _config.ChatConfig.GlobalYCoordinate);
+            TextHintElement teamElement = panel.GetElement(TeamElementId) as TextHintElement;
+            if (teamElement == null)
+                teamElement = _uiManager.CreateTextHint(panelId, TeamElementId, string.Empty);
+
+            ConfigureElement(globalElement, _config.ChatConfig.GlobalXCoordinate, _config.ChatConfig.GlobalYCoordinate);
+            ConfigureElement(teamElement, _config.ChatConfig.TeamXCoordinate, _config.ChatConfig.TeamYCoordinate);
             RefreshHud(player);
         }
 
@@ -215,33 +211,24 @@ namespace SGJ_Plugin.Modules
                 return;
             }
 
-            TextHintElement chatElement = _uiManager.GetElement(panelId, ChatElementId) as TextHintElement;
-            if (chatElement == null)
+            TextHintElement globalElement = _uiManager.GetElement(panelId, GlobalElementId) as TextHintElement;
+            TextHintElement teamElement = _uiManager.GetElement(panelId, TeamElementId) as TextHintElement;
+            if (globalElement == null || teamElement == null)
             {
                 CreateOrRefreshHud(player);
                 return;
             }
 
-            chatElement.Content = BuildVisibleText(player);
-            chatElement.Update();
+            globalElement.Content = BuildVisibleText(player, ChatChannel.Global);
+            teamElement.Content = BuildVisibleText(player, ChatChannel.Team);
+            globalElement.IsVisible = !string.IsNullOrWhiteSpace(globalElement.Content);
+            teamElement.IsVisible = !string.IsNullOrWhiteSpace(teamElement.Content);
+            globalElement.Update();
+            teamElement.Update();
             _uiManager.ShowPanel(player, panelId);
 
-            if (_config.ChatConfig.LogUiDebug && !string.IsNullOrWhiteSpace(chatElement.Content))
-                Log.Info($"[聊天系统] UI refresh for {player.Nickname}: {chatElement.Content.Length} chars.");
-        }
-
-        private string BuildVisibleText(Player viewer)
-        {
-            int maxLines = Math.Max(1, _config.ChatConfig.GlobalMaxVisibleMessages)
-                + Math.Max(1, _config.ChatConfig.TeamMaxVisibleMessages);
-
-            IEnumerable<ActiveChatMessage> messages = _activeMessages
-                .Where(message => CanSee(viewer, message.Record))
-                .OrderByDescending(message => message.Record.UtcTime)
-                .Take(maxLines)
-                .OrderBy(message => message.Record.UtcTime);
-
-            return string.Join("\n", messages.Select(message => message.RenderedText));
+            if (_config.ChatConfig.LogUiDebug && (!string.IsNullOrWhiteSpace(globalElement.Content) || !string.IsNullOrWhiteSpace(teamElement.Content)))
+                Log.Info($"[聊天系统] UI refresh for {player.Nickname}: global={globalElement.Content.Length} chars, team={teamElement.Content.Length} chars.");
         }
 
         private string BuildVisibleText(Player viewer, ChatChannel channel)
@@ -252,9 +239,9 @@ namespace SGJ_Plugin.Modules
 
             IEnumerable<ActiveChatMessage> messages = _activeMessages
                 .Where(message => message.Record.Channel == channel && CanSee(viewer, message.Record))
+                .Where(message => message.ExpireAt > DateTime.UtcNow)
                 .OrderByDescending(message => message.Record.UtcTime)
-                .Take(maxLines)
-                .OrderBy(message => message.Record.UtcTime);
+                .Take(maxLines);
 
             return string.Join("\n", messages.Select(message => message.RenderedText));
         }
@@ -275,6 +262,36 @@ namespace SGJ_Plugin.Modules
             PruneExpiredMessages();
             foreach (Player player in Player.List)
                 RefreshHud(player);
+        }
+
+        private void AddActiveMessage(ChatChannel channel, ChatRecord record, string rendered, float? visibleSeconds = null)
+        {
+            DateTime expireAt = DateTime.UtcNow.AddSeconds(visibleSeconds ?? GetVisibleSeconds(channel));
+            int maxLines = channel == ChatChannel.Global
+                ? Math.Max(1, _config.ChatConfig.GlobalMaxVisibleMessages)
+                : Math.Max(1, _config.ChatConfig.TeamMaxVisibleMessages);
+
+            List<ActiveChatMessage> channelMessages = _activeMessages
+                .Where(message => message.Record.Channel == channel)
+                .OrderByDescending(message => message.Record.UtcTime)
+                .ToList();
+
+            while (channelMessages.Count >= maxLines)
+            {
+                ActiveChatMessage oldest = channelMessages[channelMessages.Count - 1];
+                _activeMessages.Remove(oldest);
+                channelMessages.RemoveAt(channelMessages.Count - 1);
+            }
+
+            foreach (ActiveChatMessage message in channelMessages)
+                message.ExpireAt = expireAt;
+
+            _activeMessages.Add(new ActiveChatMessage
+            {
+                Record = record,
+                RenderedText = rendered,
+                ExpireAt = expireAt,
+            });
         }
 
         private void RemoveHud(Player player)
@@ -334,8 +351,8 @@ namespace SGJ_Plugin.Modules
 
         private void PruneExpiredMessages()
         {
-            DateTime now = DateTime.UtcNow;
-            _activeMessages.RemoveAll(message => message.ExpireAt <= now);
+            // Keep the active window records after they expire so the next message can
+            // show the previous window again. Expiration only hides the UI.
         }
 
         private ChatRecord CreateRecord(Player sender, ChatChannel channel, string content)
@@ -350,7 +367,7 @@ namespace SGJ_Plugin.Modules
                 Team = sender.Role.Team.ToString(),
                 TeamColor = GetTeamColor(sender.Role.Team),
                 Role = sender.Role.Type.ToString(),
-                RoleName = GetChineseRoleName(sender.Role.Type),
+                RoleName = LevelModule.GetChineseRoleName(sender.Role.Type),
                 Content = content,
             };
         }
@@ -519,57 +536,6 @@ namespace SGJ_Plugin.Modules
             return arguments == null || arguments.Count == 0
                 ? string.Empty
                 : string.Join(" ", arguments);
-        }
-
-        private static string GetChineseRoleName(RoleTypeId role)
-        {
-            switch (role)
-            {
-                case RoleTypeId.ClassD:
-                    return "D级人员";
-                case RoleTypeId.Scientist:
-                    return "科学家";
-                case RoleTypeId.FacilityGuard:
-                    return "设施保安";
-                case RoleTypeId.NtfPrivate:
-                    return "九尾狐列兵";
-                case RoleTypeId.NtfSergeant:
-                    return "九尾狐中士";
-                case RoleTypeId.NtfCaptain:
-                    return "九尾狐队长";
-                case RoleTypeId.NtfSpecialist:
-                    return "九尾狐收容专家";
-                case RoleTypeId.ChaosConscript:
-                    return "混沌分裂者征召兵";
-                case RoleTypeId.ChaosRifleman:
-                    return "混沌分裂者步枪手";
-                case RoleTypeId.ChaosRepressor:
-                    return "混沌分裂者压制者";
-                case RoleTypeId.ChaosMarauder:
-                    return "混沌分裂者掠夺者";
-                case RoleTypeId.Scp049:
-                    return "SCP-049";
-                case RoleTypeId.Scp0492:
-                    return "SCP-049-2";
-                case RoleTypeId.Scp079:
-                    return "SCP-079";
-                case RoleTypeId.Scp096:
-                    return "SCP-096";
-                case RoleTypeId.Scp106:
-                    return "SCP-106";
-                case RoleTypeId.Scp173:
-                    return "SCP-173";
-                case RoleTypeId.Scp939:
-                    return "SCP-939";
-                case RoleTypeId.Tutorial:
-                    return "教程角色";
-                case RoleTypeId.Spectator:
-                    return "观察者";
-                case RoleTypeId.Overwatch:
-                    return "监督者";
-                default:
-                    return role.ToString();
-            }
         }
 
         private static string GetPanelId(string playerKey)

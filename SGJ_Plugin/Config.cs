@@ -79,6 +79,30 @@ namespace SGJ_Plugin
             [Description("Experience awarded for killing another player.")]
             public int KillExperience { get; set; } = 25;
 
+            [Description("Kill experience by killed role. The role name must match RoleTypeId, for example Scp173 or ClassD. A matching entry overrides KillExperience.")]
+            public List<RoleExperienceReward> KillExperienceByRole { get; set; } = new List<RoleExperienceReward>
+            {
+                new RoleExperienceReward { Role = RoleTypeId.Scp049.ToString(), Experience = 60 },
+                new RoleExperienceReward { Role = RoleTypeId.Scp0492.ToString(), Experience = 35 },
+                new RoleExperienceReward { Role = RoleTypeId.Scp096.ToString(), Experience = 90 },
+                new RoleExperienceReward { Role = RoleTypeId.Scp106.ToString(), Experience = 90 },
+                new RoleExperienceReward { Role = RoleTypeId.Scp173.ToString(), Experience = 80 },
+                new RoleExperienceReward { Role = RoleTypeId.Scp939.ToString(), Experience = 70 },
+                new RoleExperienceReward { Role = RoleTypeId.Scp079.ToString(), Experience = 100 },
+            };
+
+            [Description("Enable assist experience. When disabled, the full kill experience goes to the killer only.")]
+            public bool AssistExperienceEnabled { get; set; } = true;
+
+            [Description("Percent of kill experience awarded to each valid assister.")]
+            public float AssistExperiencePercent { get; set; } = 0.35f;
+
+            [Description("Minimum damage required to qualify for assist experience.")]
+            public float AssistMinimumDamage { get; set; } = 15f;
+
+            [Description("How long damage records remain valid for assists, in seconds.")]
+            public float AssistDamageExpireSeconds { get; set; } = 20f;
+
             [Description("Experience awarded after escaping.")]
             public int EscapeExperience { get; set; } = 75;
 
@@ -162,10 +186,19 @@ namespace SGJ_Plugin
             };
 
             [Description("Level-up hint template. Placeholders are the same as HUD text, plus {gained_xp}.")]
-            public string LevelUpText { get; set; } = "<color=#ffd966>等级提升!</color> 当前等级: Lv.{level}";
+            public string LevelUpText { get; set; } = "<b><size=20>[📢]恭喜升级到{level}!</size></b>";
 
             [Description("Experience gain hint template. Placeholders are the same as HUD text, plus {gained_xp} and {reason}.")]
-            public string ExperienceGainText { get; set; } = "<color=#9be7ff>+{gained_xp} XP</color> {reason}";
+            public string ExperienceGainText { get; set; } = "<b><size=20>[📢]增加经验值{gained_xp}!</size></b>";
+
+            [Description("Experience notification X coordinate.")]
+            public float ExperienceHintXCoordinate { get; set; } = 820f;
+
+            [Description("Experience notification Y coordinate.")]
+            public float ExperienceHintYCoordinate { get; set; } = 120f;
+
+            [Description("Experience notification font size.")]
+            public int ExperienceHintFontSize { get; set; } = 20;
 
             [Description("Automatically add the level prefix before the player's displayed name.")]
             public bool UpdateDisplayNickname { get; set; } = true;
@@ -196,6 +229,12 @@ namespace SGJ_Plugin
             public int MaxLevel { get; set; } = 4;
             public string RankName { get; set; } = "新手";
             public string Color { get; set; } = "#C0C0C0";
+        }
+
+        public class RoleExperienceReward
+        {
+            public string Role { get; set; } = RoleTypeId.None.ToString();
+            public int Experience { get; set; } = 0;
         }
 
         public class SpectatorHudConfigClass
@@ -297,13 +336,13 @@ namespace SGJ_Plugin
             public int MaxStoredMessages { get; set; } = 500;
 
             [Description("Global chat UI X coordinate.")]
-            public float GlobalXCoordinate { get; set; } = -850f;
+            public float GlobalXCoordinate { get; set; } = 120f;
 
             [Description("Global chat UI Y coordinate.")]
             public float GlobalYCoordinate { get; set; } = 120f;
 
             [Description("Team chat UI X coordinate.")]
-            public float TeamXCoordinate { get; set; } = -1030f;
+            public float TeamXCoordinate { get; set; } = 120f;
 
             [Description("Team chat UI Y coordinate.")]
             public float TeamYCoordinate { get; set; } = 230f;
