@@ -1,6 +1,10 @@
 using Exiled.API.Features;
 using Exiled.API.Features.Core.UserSettings;
+using HintServiceMeow.Core.Enum;
 using MEC;
+using SGJ_Plugin.SpecialContent.Base;
+using SGJ_Plugin.UI.Elements;
+using SGJ_Plugin.UI.Managers;
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,9 +14,14 @@ namespace SGJ_Plugin.Modules
 {
     public class SkillModule : ModuleBase
     {
+        private const string SkillHudElementId = "skill_hud";
+
         private readonly Config _config;
         private readonly Dictionary<string, DateTime> _cooldowns = new Dictionary<string, DateTime>();
         private readonly List<SettingBase> _settings = new List<SettingBase>();
+        private UIManager _uiManager;
+        private CoroutineHandle _refreshCoroutine;
+        private bool _refreshCoroutineStarted;
 
         public override string Name => "Skill Module";
 
@@ -30,15 +39,22 @@ namespace SGJ_Plugin.Modules
             }
 
             RegisterSettings();
+            _uiManager = UIManager.Instance;
+            _uiManager.Initialize();
+            StartRefreshCoroutine();
             CustomPlayerEvents.Verified += OnVerified;
         }
 
         protected override void OnDisable()
         {
             CustomPlayerEvents.Verified -= OnVerified;
+            StopRefreshCoroutine();
 
             if (_settings.Count > 0)
                 SettingBase.Unregister(player => true, _settings);
+
+            foreach (Player player in Player.List)
+                HideSkillHud(player);
 
             _settings.Clear();
             _cooldowns.Clear();
@@ -92,39 +108,179 @@ namespace SGJ_Plugin.Modules
             if (player == null || setting is not KeybindSetting keybind || !keybind.IsPressed)
                 return;
 
-            Config.SpecialRoleDefinition role = SpecialContentModule.Instance?.GetAssignedRole(player);
+            CustomRoleBase role = SpecialContentModule.Instance?.GetAssignedRole(player);
             if (role == null)
-            {
-                Helper.Helper.ShowTopRightHint(player, _config.SkillSystemConfig.NoSkillText, 3f);
                 return;
-            }
 
-            if (!TryConsumeCooldown(player, role, primary))
+            if (!IsSkillEnabled(role, primary))
+                return;
+
+            if (IsOnCooldown(player, primary))
                 return;
 
             bool handled = primary ? role.UsePrimarySkill(player) : role.UseSecondarySkill(player);
-            if (!handled)
-                Helper.Helper.ShowTopRightHint(player, _config.SkillSystemConfig.NoSkillText, 3f);
+            if (handled)
+                SetCooldown(player, role, primary);
         }
 
-        private bool TryConsumeCooldown(Player player, Config.SpecialRoleDefinition role, bool primary)
+        private bool IsOnCooldown(Player player, bool primary)
         {
             string key = GetCooldownKey(player, primary);
             DateTime now = DateTime.UtcNow;
-            if (_cooldowns.TryGetValue(key, out DateTime readyAt) && readyAt > now)
-            {
-                int seconds = Math.Max(1, (int)Math.Ceiling((readyAt - now).TotalSeconds));
-                string text = (_config.SkillSystemConfig.CooldownText ?? string.Empty).Replace("{seconds}", seconds.ToString());
-                Helper.Helper.ShowTopRightHint(player, text, 2f);
-                return false;
-            }
+            return _cooldowns.TryGetValue(key, out DateTime readyAt) && readyAt > now;
+        }
 
+        private void SetCooldown(Player player, CustomRoleBase role, bool primary)
+        {
             float cooldownSeconds = primary ? role?.PrimarySkillCooldownSeconds ?? 0f : role?.SecondarySkillCooldownSeconds ?? 0f;
             if (cooldownSeconds <= 0f)
                 cooldownSeconds = _config.SkillSystemConfig.SkillCooldownSeconds;
 
-            _cooldowns[key] = now.AddSeconds(Math.Max(0f, cooldownSeconds));
-            return true;
+            _cooldowns[GetCooldownKey(player, primary)] = DateTime.UtcNow.AddSeconds(Math.Max(0f, cooldownSeconds));
+        }
+
+        private void StartRefreshCoroutine()
+        {
+            if (_refreshCoroutineStarted)
+                return;
+
+            _refreshCoroutineStarted = true;
+            _refreshCoroutine = Timing.RunCoroutine(RefreshLoop());
+        }
+
+        private void StopRefreshCoroutine()
+        {
+            if (!_refreshCoroutineStarted)
+                return;
+
+            Timing.KillCoroutines(_refreshCoroutine);
+            _refreshCoroutineStarted = false;
+        }
+
+        private IEnumerator<float> RefreshLoop()
+        {
+            while (_refreshCoroutineStarted)
+            {
+                yield return Timing.WaitForSeconds(0.5f);
+
+                foreach (Player player in Player.List)
+                    RefreshSkillHud(player);
+            }
+        }
+
+        private void RefreshSkillHud(Player player)
+        {
+            if (player == null || !_config.SkillSystemConfig.ShowSkillHud)
+                return;
+
+            CustomRoleBase role = SpecialContentModule.Instance?.GetAssignedRole(player);
+            if (role == null || (!role.PrimarySkillEnabled && !role.SecondarySkillEnabled))
+            {
+                HideSkillHud(player);
+                return;
+            }
+
+            string content = RenderSkillHud(player, role);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                HideSkillHud(player);
+                return;
+            }
+
+            string panelId = GetSkillHudPanelId(player);
+            UIPanel panel = _uiManager.CreatePanel(panelId, "Skill Hud");
+            TextHintElement element = panel.GetElement(SkillHudElementId) as TextHintElement;
+            if (element == null)
+            {
+                element = _uiManager.CreateTextHint(panelId, SkillHudElementId, string.Empty);
+                element.Alignment = HintAlignment.Right;
+            }
+
+            element.Alignment = HintAlignment.Right;
+            element.XCoordinate = Clamp(_config.SkillSystemConfig.SkillHudXCoordinate, -1100f, 1100f);
+            element.YCoordinate = Clamp(_config.SkillSystemConfig.SkillHudYCoordinate, 0f, 1030f);
+            element.FontSize = Math.Max(8, Math.Min(60, _config.SkillSystemConfig.SkillHudFontSize));
+            element.Content = content;
+            element.IsVisible = true;
+            element.Update();
+            _uiManager.ShowPanel(player, panelId);
+        }
+
+        private string RenderSkillHud(Player player, CustomRoleBase role)
+        {
+            string primaryName = role.PrimarySkillEnabled ? role.PrimarySkillName : string.Empty;
+            string secondaryName = role.SecondarySkillEnabled ? role.SecondarySkillName : string.Empty;
+            string text = _config.SkillSystemConfig.SkillHudText ?? string.Empty;
+
+            text = text
+                .Replace("{primary_skill}", primaryName)
+                .Replace("{primary_status}", role.PrimarySkillEnabled ? GetSkillStatus(player, true) : string.Empty)
+                .Replace("{secondary_skill}", secondaryName)
+                .Replace("{secondary_status}", role.SecondarySkillEnabled ? GetSkillStatus(player, false) : string.Empty);
+
+            return RemoveEmptySkillLines(text);
+        }
+
+        private string GetSkillStatus(Player player, bool primary)
+        {
+            if (_cooldowns.TryGetValue(GetCooldownKey(player, primary), out DateTime readyAt) && readyAt > DateTime.UtcNow)
+            {
+                int seconds = Math.Max(1, (int)Math.Ceiling((readyAt - DateTime.UtcNow).TotalSeconds));
+                return $"CD {seconds}秒";
+            }
+
+            return "已就绪";
+        }
+
+        private static bool IsSkillEnabled(CustomRoleBase role, bool primary)
+        {
+            return primary ? role?.PrimarySkillEnabled == true : role?.SecondarySkillEnabled == true;
+        }
+
+        private void HideSkillHud(Player player)
+        {
+            if (player == null || _uiManager == null)
+                return;
+
+            _uiManager.HidePanel(player, GetSkillHudPanelId(player));
+        }
+
+        private static string RemoveEmptySkillLines(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return string.Empty;
+
+            List<string> lines = new List<string>();
+            foreach (string line in value.Replace("\r\n", "\n").Replace("\r", "\n").Split('\n'))
+            {
+                if (line.Contains("{}") || line.Contains("[]"))
+                    continue;
+
+                string stripped = line.Replace("<color=#7FFFD4></color>", string.Empty).Trim();
+                if (!string.IsNullOrWhiteSpace(stripped))
+                    lines.Add(line);
+            }
+
+            return string.Join("\n", lines);
+        }
+
+        private static string GetSkillHudPanelId(Player player)
+        {
+            return "skill_hud_" + SanitizeKey(!string.IsNullOrWhiteSpace(player.RawUserId) ? player.RawUserId : player.UserId ?? player.Id.ToString());
+        }
+
+        private static string SanitizeKey(string key)
+        {
+            return (key ?? string.Empty).Replace("@", "_").Replace(".", "_").Replace(":", "_");
+        }
+
+        private static float Clamp(float value, float min, float max)
+        {
+            if (value < min)
+                return min;
+            if (value > max)
+                return max;
+            return value;
         }
 
         private static string GetCooldownKey(Player player, bool primary)

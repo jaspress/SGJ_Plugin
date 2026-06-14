@@ -5,6 +5,7 @@ using SGJ_Plugin.Modules;
 using PluginHelper = SGJ_Plugin.Helper.Helper;
 using System;
 using System.Collections.Generic;
+using MEC;
 
 namespace SGJ_Plugin
 {
@@ -109,17 +110,11 @@ namespace SGJ_Plugin
             // 添加伤害管理模块
             _modules.Add(new DamageManagerModule(Config));
 
+            // 添加SCP静止回血/血量平衡模块
+            _modules.Add(new ScpIdleRegenModule(Config));
+
             // 添加投降模块
             _modules.Add(new SurrenderModule(Config));
-
-            // 添加特殊阵营/角色/物品模块
-            _modules.Add(new SpecialContentModule(Config));
-
-            // 添加技能快捷键模块
-            _modules.Add(new SkillModule(Config));
-
-            // 添加基础任务模块
-            _modules.Add(new TaskModule(Config));
 
             // 添加SCP交换模块
             _modules.Add(new ScpSwapModule(Config));
@@ -146,7 +141,7 @@ namespace SGJ_Plugin
             if (misc.PublicWelcomeBroadcastEnabled)
             {
                 string publicWelcomeMessage = PluginHelper.FormatTemplate(misc.PublicWelcomeBroadcastText, ev.Player, Config);
-                PluginHelper.ShowBroadcast(publicWelcomeMessage, misc.PublicWelcomeBroadcastDuration);
+                Timing.CallDelayed(1f, () => PluginHelper.ShowBroadcast("PWB_" + ev.Player.Id,publicWelcomeMessage, misc.PublicWelcomeBroadcastDuration));
             }
         }
     }

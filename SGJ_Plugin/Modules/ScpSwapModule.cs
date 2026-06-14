@@ -188,6 +188,7 @@ namespace SGJ_Plugin.Modules
             switch (role)
             {
                 case RoleTypeId.Scp049: return "SCP-049";
+                case RoleTypeId.Scp079: return "SCP-079";
                 case RoleTypeId.Scp096: return "SCP-096";
                 case RoleTypeId.Scp106: return "SCP-106";
                 case RoleTypeId.Scp173: return "SCP-173";

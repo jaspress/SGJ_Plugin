@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Exiled.API.Features;
@@ -16,6 +17,9 @@ namespace SGJ_Plugin.Helper
         private const string CenterInfoElementId = "helper_center_info";
         private const string TopStatusElementId = "helper_top_status";
 
+        private static readonly List<TimedMessage> BroadcastQueue = new();
+        private static List<string> _lastRendered = new();
+        private static readonly object _lock = new();
         private static readonly Dictionary<string, List<TimedMessage>> TopRightHints = new Dictionary<string, List<TimedMessage>>();
         private static readonly Dictionary<string, List<TimedMessage>> CenterTopHints = new Dictionary<string, List<TimedMessage>>();
         private static readonly Dictionary<string, TimedMessage> CenterInfoHints = new Dictionary<string, TimedMessage>();
@@ -89,6 +93,7 @@ namespace SGJ_Plugin.Helper
                 Text = text,
                 ExpireAt = now.AddSeconds(System.Math.Max(0.5f, duration)),
             });
+            TrimMessageCount(messages, _config?.MiscConfig?.TopRightHintMaxVisibleMessages ?? 4);
 
             RefreshTopRightHint(player);
         }
@@ -109,11 +114,13 @@ namespace SGJ_Plugin.Helper
 
             System.DateTime now = System.DateTime.UtcNow;
             messages.RemoveAll(message => message.ExpireAt <= now);
+            BroadcastMessages.RemoveAll(m => m.Text == text);
             messages.Add(new TimedMessage
             {
                 Text = text,
                 ExpireAt = now.AddSeconds(System.Math.Max(0.5f, duration)),
             });
+            TrimMessageCount(messages, _config?.MiscConfig?.CenterTopHintMaxVisibleMessages ?? 3);
 
             RefreshCenterTopHint(player);
         }
@@ -134,20 +141,22 @@ namespace SGJ_Plugin.Helper
             RefreshCenterInfoHint(player);
         }
 
-        public static void ShowBroadcast(string text, float duration)
+        public static void ShowBroadcast(string id, string text, float duration)
         {
-            if (string.IsNullOrWhiteSpace(text))
-                return;
+            var now = DateTime.UtcNow;
 
-            System.DateTime now = System.DateTime.UtcNow;
-            System.DateTime showAt = now.AddSeconds(System.Math.Max(0f, _config?.MiscConfig?.BroadcastDelaySeconds ?? 0f));
-            BroadcastMessages.RemoveAll(message => message.ExpireAt <= now);
-            BroadcastMessages.Insert(0, new TimedMessage
+            lock (_lock)
             {
-                Text = text,
-                NotBefore = showAt,
-                ExpireAt = showAt.AddSeconds(System.Math.Max(0.5f, duration)),
-            });
+                BroadcastQueue.RemoveAll(m => m.Id == id);
+
+                BroadcastQueue.Add(new TimedMessage
+                {
+                    Id = id,
+                    Text = text,
+                    NotBefore = now,
+                    ExpireAt = now.AddSeconds(duration)
+                });
+            }
         }
 
         public static string FormatTemplate(string template, Player player, Config config)
@@ -297,13 +306,13 @@ namespace SGJ_Plugin.Helper
                 case ItemType.Jailbird:
                     return "囚鸟";
                 case ItemType.SCP207:
-                    return "SCP-207 可乐";
+                    return "SCP-207";
                 case ItemType.SCP268:
-                    return "SCP-268 疏忽帽";
+                    return "SCP-268";
                 case ItemType.SCP330:
-                    return "SCP-330 糖果";
+                    return "SCP-330";
                 case ItemType.SCP500:
-                    return "SCP-500 万能药";
+                    return "SCP-500";
                 case ItemType.None:
                     return "无";
                 default:
@@ -360,6 +369,7 @@ namespace SGJ_Plugin.Helper
 
             System.DateTime now = System.DateTime.UtcNow;
             messages.RemoveAll(message => message.ExpireAt <= now);
+            TrimMessageCount(messages, _config?.MiscConfig?.TopRightHintMaxVisibleMessages ?? 4);
 
             if (messages.Count == 0)
             {
@@ -383,7 +393,7 @@ namespace SGJ_Plugin.Helper
             element.XCoordinate = Clamp(_config?.LevelSystemConfig?.ExperienceHintXCoordinate ?? 820f, -1100f, 1100f);
             element.YCoordinate = Clamp(_config?.LevelSystemConfig?.ExperienceHintYCoordinate ?? 120f, 0f, 1030f);
             element.FontSize = System.Math.Max(8, System.Math.Min(60, _config?.LevelSystemConfig?.ExperienceHintFontSize ?? 20));
-            element.Content = FormatHintContent(BuildTimedText(messages, now, _config?.MiscConfig?.TopRightHintMessageSpacingLines ?? 2), _config?.MiscConfig?.TopRightHintLineHeightPercent ?? 150);
+            element.Content = FormatHintContent(BuildTimedText(messages, now, _config?.MiscConfig?.TopRightHintMessageSpacingLines ?? 1, _config?.MiscConfig?.TopRightHintMaxVisibleMessages ?? 4, _config?.MiscConfig?.TopRightHintMaxVisibleLines ?? 10), _config?.MiscConfig?.TopRightHintLineHeightPercent ?? 140);
             element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
             element.Update();
             _uiManager.ShowPanel(player, panelId);
@@ -402,6 +412,7 @@ namespace SGJ_Plugin.Helper
 
             System.DateTime now = System.DateTime.UtcNow;
             messages.RemoveAll(message => message.ExpireAt <= now);
+            TrimMessageCount(messages, _config?.MiscConfig?.CenterTopHintMaxVisibleMessages ?? 3);
 
             if (messages.Count == 0)
             {
@@ -426,7 +437,7 @@ namespace SGJ_Plugin.Helper
             element.XCoordinate = Clamp(misc?.CenterTopHintXCoordinate ?? 0f, -1100f, 1100f);
             element.YCoordinate = Clamp(misc?.CenterTopHintYCoordinate ?? 120f, 0f, 1030f);
             element.FontSize = System.Math.Max(8, System.Math.Min(60, misc?.CenterTopHintFontSize ?? 22));
-            element.Content = FormatHintContent(BuildTimedText(messages, now, misc?.CenterTopHintMessageSpacingLines ?? 2), misc?.CenterTopHintLineHeightPercent ?? 155);
+            element.Content = FormatHintContent(BuildTimedText(messages, now, misc?.CenterTopHintMessageSpacingLines ?? 1, misc?.CenterTopHintMaxVisibleMessages ?? 3, misc?.CenterTopHintMaxVisibleLines ?? 8), misc?.CenterTopHintLineHeightPercent ?? 140);
             element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
             element.Update();
             _uiManager.ShowPanel(player, panelId);
@@ -503,71 +514,57 @@ namespace SGJ_Plugin.Helper
 
         private static void RefreshBroadcast()
         {
-            System.DateTime now = System.DateTime.UtcNow;
-            BroadcastMessages.RemoveAll(message => message.ExpireAt <= now);
+            var now = DateTime.UtcNow;
 
-            if (BroadcastMessages.Count == 0)
+            List<string> snapshot;
+
+            lock (_lock)
             {
-                ClearBroadcasts();
-                return;
+                BroadcastQueue.RemoveAll(m => m.ExpireAt <= now);
+
+                snapshot = BroadcastQueue
+                    .Where(m => m.NotBefore <= now)
+                    .OrderBy(m => m.ExpireAt)
+                    .Select(m =>
+                    {
+                        int s = Math.Max(0,
+                            (int)Math.Ceiling((m.ExpireAt - now).TotalSeconds));
+
+                        return $"[{s}s] {m.Text}";
+                    })
+                    .ToList();
             }
 
-            List<TimedMessage> activeMessages = BroadcastMessages.Where(message => message.NotBefore <= now).ToList();
-            if (activeMessages.Count == 0)
+            if (_lastRendered.SequenceEqual(snapshot))
                 return;
 
-            string content = BuildTimedText(activeMessages, now, _config?.MiscConfig?.TopRightHintMessageSpacingLines ?? 2);
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                ClearBroadcasts();
-                return;
-            }
+            _lastRendered = snapshot;
 
-            int remainingSeconds = System.Math.Max(1, (int)System.Math.Ceiling(activeMessages.Max(message => (message.ExpireAt - now).TotalSeconds)));
-            SendBroadcast((ushort)remainingSeconds, content);
+            string content = string.Join("\n", snapshot);
+
+            SendStableBroadcast(content);
         }
 
-        private static void SendBroadcast(ushort duration, string content)
+        private static void SendStableBroadcast(string content)
         {
-            try
+            ushort duration = 1;
+
+            foreach (var p in Player.List)
             {
-                Broadcast broadcast = Broadcast.Singleton;
-                if (broadcast == null)
-                    return;
-
-                broadcast.RpcClearElements();
-                broadcast.RpcAddElement("\n" + content, duration, Broadcast.BroadcastFlags.Normal);
-            }
-            catch (System.Exception ex)
-            {
-                if (_config?.Debug == true)
-                    Log.Debug($"[Helper] Server broadcast failed, falling back to target broadcasts: {ex.Message}");
-
-                foreach (Player player in Player.List)
-                {
-                    try
-                    {
-                        Broadcast broadcast = Server.Broadcast;
-                        if (broadcast == null || player.Connection == null)
-                            continue;
-
-                        broadcast.TargetClearElements(player.Connection);
-                        broadcast.TargetAddElement(player.Connection, "\n" + content, duration, Broadcast.BroadcastFlags.Normal);
-                    }
-                    catch (System.Exception playerEx)
-                    {
-                        if (_config?.Debug == true)
-                            Log.Debug($"[Helper] Target broadcast failed for {player.Nickname}: {playerEx.Message}");
-                    }
-                }
+                p.ClearBroadcasts();
+                p.Broadcast(duration, content);
             }
         }
 
+        private static void ClearBroadcasts(Player p) => p.ClearBroadcasts();
         private static void ClearBroadcasts()
         {
             try
             {
-                Server.Broadcast?.RpcClearElements();
+                foreach (var p in Player.List)
+                {
+                    p.ClearBroadcasts();
+                }
             }
             catch (System.Exception ex)
             {
@@ -576,21 +573,55 @@ namespace SGJ_Plugin.Helper
             }
         }
 
-        private static string BuildTimedText(List<TimedMessage> messages, System.DateTime now, int spacingLines)
+        private static string BuildTimedText(List<TimedMessage> messages, System.DateTime now, int spacingLines, int maxMessages, int maxEstimatedLines)
         {
             if (messages == null || messages.Count == 0)
                 return string.Empty;
 
+            maxMessages = System.Math.Max(1, maxMessages);
+            maxEstimatedLines = System.Math.Max(1, maxEstimatedLines);
+            var visibleMessages = messages
+                .OrderBy(m => m.ExpireAt)
+                .Take(maxMessages)
+                .ToList();
             List<string> lines = new List<string>();
-            foreach (TimedMessage message in messages)
+            int usedLines = 0;
+            foreach (TimedMessage message in visibleMessages)
             {
                 int seconds = System.Math.Max(0, (int)System.Math.Ceiling((message.ExpireAt - now).TotalSeconds));
-                lines.Add($"[{seconds}s] {message.Text}");
+                string line = $"[{seconds}s] {message.Text}";
+                int estimatedLines = EstimateLineCount(line);
+                if (lines.Count > 0 && usedLines + estimatedLines > maxEstimatedLines)
+                    break;
+
+                lines.Add(line);
+                usedLines += estimatedLines + System.Math.Max(0, spacingLines);
             }
 
             spacingLines = System.Math.Max(0, spacingLines);
             string separator = "\n" + new string('\n', spacingLines);
             return string.Join(separator, lines);
+        }
+
+        private static void TrimMessageCount(List<TimedMessage> messages, int maxMessages)
+        {
+            if (messages == null)
+                return;
+
+            maxMessages = System.Math.Max(1, maxMessages);
+            if (messages.Count > maxMessages)
+                messages.RemoveRange(0, messages.Count - maxMessages);
+        }
+
+        private static int EstimateLineCount(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return 1;
+
+            string normalized = text.Replace("\r\n", "\n").Replace("\r", "\n");
+            int explicitLines = normalized.Count(ch => ch == '\n') + 1;
+            int wrappedLines = System.Math.Max(1, normalized.Length / 42);
+            return System.Math.Max(explicitLines, wrappedLines);
         }
 
         private static string FormatHintContent(string text, int lineHeightPercent)
@@ -677,9 +708,10 @@ namespace SGJ_Plugin.Helper
 
         private class TimedMessage
         {
-            public string Text { get; set; } = string.Empty;
-            public System.DateTime NotBefore { get; set; } = System.DateTime.MinValue;
-            public System.DateTime ExpireAt { get; set; }
+            public string Id;
+            public string Text;
+            public DateTime ExpireAt;
+            public DateTime NotBefore;
         }
     }
 }

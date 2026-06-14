@@ -4,6 +4,7 @@ namespace SGJ_Plugin.SpecialContent.CustomItems
     {
         public SecurityKeycardCustomItem() : base("安保权限卡", ItemType.KeycardMTFPrivate)
         {
+            Description = "安保权限卡，权限由原版门禁系统决定。";
         }
     }
 }

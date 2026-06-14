@@ -17,7 +17,7 @@ namespace SGJ_Plugin.Modules
     public class SpecialContentModule : ModuleBase
     {
         private readonly Config _config;
-        private readonly Dictionary<string, Config.SpecialRoleDefinition> _assignedRoles = new Dictionary<string, Config.SpecialRoleDefinition>();
+        private readonly Dictionary<string, CustomRoleBase> _assignedRoles = new Dictionary<string, CustomRoleBase>();
         private readonly Dictionary<ushort, string> _specialHeldItems = new Dictionary<ushort, string>();
         private readonly Dictionary<ushort, string> _specialDroppedItems = new Dictionary<ushort, string>();
         private readonly Dictionary<string, PendingSpecialPickup> _pendingPickupItems = new Dictionary<string, PendingSpecialPickup>();
@@ -50,6 +50,7 @@ namespace SGJ_Plugin.Modules
             CustomPlayerEvents.DroppingItem += OnDroppingItem;
             CustomPlayerEvents.DroppedItem += OnDroppedItem;
             CustomPlayerEvents.ChangingItem += OnChangingItem;
+            CustomPlayerEvents.ConsumingItem += OnConsumingItem;
 
             foreach (Player player in Player.List)
                 ApplySpecialRoleDelayed(player);
@@ -64,6 +65,7 @@ namespace SGJ_Plugin.Modules
             CustomPlayerEvents.DroppingItem -= OnDroppingItem;
             CustomPlayerEvents.DroppedItem -= OnDroppedItem;
             CustomPlayerEvents.ChangingItem -= OnChangingItem;
+            CustomPlayerEvents.ConsumingItem -= OnConsumingItem;
 
             foreach (Player player in Player.List)
                 ResetPlayer(player);
@@ -78,12 +80,12 @@ namespace SGJ_Plugin.Modules
                 Instance = null;
         }
 
-        public Config.SpecialRoleDefinition GetAssignedRole(Player player)
+        public CustomRoleBase GetAssignedRole(Player player)
         {
             if (player == null)
                 return null;
 
-            return _assignedRoles.TryGetValue(GetPlayerKey(player), out Config.SpecialRoleDefinition role) ? role : null;
+            return _assignedRoles.TryGetValue(GetPlayerKey(player), out CustomRoleBase role) ? role : null;
         }
 
         public string GetRoleName(Player player)
@@ -98,7 +100,7 @@ namespace SGJ_Plugin.Modules
 
         public int? GetKillExperience(Player player)
         {
-            Config.SpecialRoleDefinition role = GetAssignedRole(player);
+            CustomRoleBase role = GetAssignedRole(player);
             if (role == null || role.KillExperience <= 0)
                 return null;
 
@@ -127,8 +129,9 @@ namespace SGJ_Plugin.Modules
                 return false;
             }
 
-            _assignedRoles[GetPlayerKey(player)] = role;
-            ApplyRole(player, role);
+            CustomRoleBase runtimeRole = SpecialContentRegistry.CreateRole(role);
+            _assignedRoles[GetPlayerKey(player)] = runtimeRole;
+            ApplyRole(player, runtimeRole);
             response = $"Set {player.Nickname} special role to {role.Name}.";
             return true;
         }
@@ -200,11 +203,15 @@ namespace SGJ_Plugin.Modules
             if (ev?.Player == null || ev.Item == null || ev.Item.Type == ItemType.None)
                 return;
 
+            CustomItemBase customItem = ResolveItemForHeldItem(ev.Item);
+            bool isSpecial = customItem?.IsSpecialItem == true;
+
+            if (isSpecial)
+                customItem.OnSelected(ev.Player, ev.Item);
+
             if (!_config.SpecialContentConfig.ShowItemIntroductionOnSwitch)
                 return;
 
-            CustomItemBase customItem = ResolveItemForHeldItem(ev.Item);
-            bool isSpecial = customItem?.IsSpecialItem == true;
             string template = isSpecial
                 ? _config.SpecialContentConfig.SpecialItemIntroductionText
                 : _config.SpecialContentConfig.NormalItemIntroductionText;
@@ -214,6 +221,25 @@ namespace SGJ_Plugin.Modules
                 : RenderNormalItemIntroduction(template, ev.Player, ev.Item);
 
             PluginHelper.ShowCenterInfoHint(ev.Player, text, _config.SpecialContentConfig.ItemIntroductionDuration);
+        }
+
+        private void OnConsumingItem(ConsumingItemEventArgs ev)
+        {
+            if (ev?.Player == null || ev.Item == null)
+                return;
+
+            CustomItemBase customItem = ResolveItemForHeldItem(ev.Item);
+            if (customItem?.IsSpecialItem != true)
+                return;
+
+            bool applied = customItem.OnConsumed(ev, ResolveItem);
+            if (!applied)
+                return;
+
+            PluginHelper.ShowCenterTopHint(
+                ev.Player,
+                $"<b><size=20><color=#7FFFD4>[特殊物品]</color> 使用：<color=#90EE90>{customItem.Name}</color>\n<size=18>{customItem.GetUseMessage()}</size></size></b>",
+                3f);
         }
 
         private void OnDroppingItem(DroppingItemEventArgs ev)
@@ -258,8 +284,9 @@ namespace SGJ_Plugin.Modules
             if (role == null)
                 return;
 
-            _assignedRoles[GetPlayerKey(player)] = role;
-            ApplyRole(player, role);
+            CustomRoleBase runtimeRole = SpecialContentRegistry.CreateRole(role);
+            _assignedRoles[GetPlayerKey(player)] = runtimeRole;
+            ApplyRole(player, runtimeRole);
 
         }
 
@@ -312,7 +339,7 @@ namespace SGJ_Plugin.Modules
             return switches == null || !switches.TryGetValue(itemName, out bool enabled) || enabled;
         }
 
-        private void ApplyRole(Player player, Config.SpecialRoleDefinition role)
+        private void ApplyRole(Player player, CustomRoleBase role)
         {
             try
             {
@@ -328,7 +355,7 @@ namespace SGJ_Plugin.Modules
             }
         }
 
-        private void ShowRoleIntroduction(Player player, Config.SpecialRoleDefinition role)
+        private void ShowRoleIntroduction(Player player, CustomRoleBase role)
         {
             if (player == null || role == null)
                 return;
@@ -358,8 +385,10 @@ namespace SGJ_Plugin.Modules
 
         private CustomItemBase ResolveItem(string name)
         {
-            return (_config.SpecialContentConfig.Items ?? new List<Config.SpecialItemDefinition>())
-                .FirstOrDefault(item => item != null && string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+            Config.SpecialItemDefinition item = (_config.SpecialContentConfig.Items ?? new List<Config.SpecialItemDefinition>())
+                .FirstOrDefault(entry => entry != null && string.Equals(entry.Name, name, StringComparison.OrdinalIgnoreCase));
+
+            return SpecialContentRegistry.CreateItem(item);
         }
 
         private CustomItemBase ResolveItemForHeldItem(Item item)
@@ -370,8 +399,10 @@ namespace SGJ_Plugin.Modules
             if (_specialHeldItems.TryGetValue(item.Serial, out string itemName))
                 return ResolveItem(itemName);
 
-            return (_config.SpecialContentConfig.Items ?? new List<Config.SpecialItemDefinition>())
+            Config.SpecialItemDefinition matchedItem = (_config.SpecialContentConfig.Items ?? new List<Config.SpecialItemDefinition>())
                 .FirstOrDefault(customItem => customItem != null && customItem.IsSpecialItem && customItem.TryGetGameItem(out ItemType type) && type == item.Type);
+
+            return SpecialContentRegistry.CreateItem(matchedItem);
         }
 
         private string RenderNormalItemIntroduction(string template, Player player, Item item)
@@ -386,7 +417,7 @@ namespace SGJ_Plugin.Modules
 
         public string RenderRoleIntroductionFor(Player player)
         {
-            Config.SpecialRoleDefinition role = GetAssignedRole(player);
+            CustomRoleBase role = GetAssignedRole(player);
             if (role == null)
                 return "当前没有特殊角色。";
 
@@ -396,7 +427,7 @@ namespace SGJ_Plugin.Modules
         public bool ShowRoleIntroductionCommand(Player player, out string response)
         {
             response = RenderRoleIntroductionFor(player);
-            Config.SpecialRoleDefinition role = GetAssignedRole(player);
+            CustomRoleBase role = GetAssignedRole(player);
             if (player != null && role != null)
                 PluginHelper.ShowCenterInfoHint(player, response, _config.SpecialContentConfig.RoleIntroductionDuration);
 

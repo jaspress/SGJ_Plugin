@@ -1,5 +1,6 @@
 ﻿using Exiled.API.Features;
 using Exiled.Events.EventArgs.Player;
+using SGJ_Plugin.SpecialContent.Base;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -72,7 +73,7 @@ namespace SGJ_Plugin.Modules
 
         private void ApplySpecialRoleResistance(HurtingEventArgs ev)
         {
-            Config.SpecialRoleDefinition role = SpecialContentModule.Instance?.GetAssignedRole(ev?.Player);
+            CustomRoleBase role = SpecialContentModule.Instance?.GetAssignedRole(ev?.Player);
             if (role == null || ev?.DamageHandler == null || ev.DamageHandler.Damage <= 0f)
                 return;
 
@@ -87,7 +88,7 @@ namespace SGJ_Plugin.Modules
             ev.DamageHandler.Damage *= 1f - (resistance / 100f);
         }
 
-        private static int GetBulletResistance(Config.SpecialRoleDefinition role, object damageHandler)
+        private static int GetBulletResistance(CustomRoleBase role, object damageHandler)
         {
             string hitbox = GetHitboxName(damageHandler);
             if (hitbox.Contains("Head"))

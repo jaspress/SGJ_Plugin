@@ -13,7 +13,7 @@ namespace SGJ_Plugin.SpecialContent.CustomItems
             Name = name;
             GameItem = itemType.ToString();
             GiveByDefault = giveByDefault;
-            Description = name;
+            Description = $"{name}，使用原版物品行为。";
         }
     }
 }

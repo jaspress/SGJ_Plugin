@@ -10,6 +10,7 @@ namespace SGJ_Plugin.UI.Core
     public class UICore
     {
         private const string GroupName = "SGJ_Plugin.UI";
+        private const int MaxPlayerHintBytes = 52000;
         private readonly Dictionary<string, List<AbstractHint>> _playerHints = new Dictionary<string, List<AbstractHint>>();
 
         public bool IsInitialized { get; private set; }
@@ -35,6 +36,7 @@ namespace SGJ_Plugin.UI.Core
                 _playerHints[key] = hints;
             }
 
+            int usedBytes = 0;
             foreach (UIElement element in elements.Where(x => x != null))
             {
                 AbstractHint hint = element.GetHintObject();
@@ -47,8 +49,16 @@ namespace SGJ_Plugin.UI.Core
                 element.Update();
                 if (element.IsVisible && !string.IsNullOrWhiteSpace(element.Content))
                 {
+                    int elementBytes = System.Text.Encoding.UTF8.GetByteCount(element.Content);
+                    if (usedBytes + elementBytes > MaxPlayerHintBytes)
+                    {
+                        Log.Debug($"[UICore] Skipped UI element '{element.Id}' for {player.Nickname}: hint byte budget exceeded.");
+                        continue;
+                    }
+
                     display.AddHint(hint, GroupName);
                     hints.Add(hint);
+                    usedBytes += elementBytes;
                 }
             }
 

@@ -2,6 +2,7 @@ using Exiled.API.Features;
 using Exiled.Events.EventArgs.Player;
 using MEC;
 using PlayerRoles;
+using SGJ_Plugin.SpecialContent.Base;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -95,7 +96,7 @@ namespace SGJ_Plugin.Modules
             if (player == null || !_config.TaskSystemConfig.IsEnabled)
                 return;
 
-            Config.SpecialRoleDefinition role = SpecialContentModule.Instance?.GetAssignedRole(player);
+            CustomRoleBase role = SpecialContentModule.Instance?.GetAssignedRole(player);
             Config.TaskDefinition task = PickTask(role, player.Role.Type);
             if (task == null)
                 return;
@@ -111,7 +112,7 @@ namespace SGJ_Plugin.Modules
                 ShowTaskHint(player, _config.TaskSystemConfig.AssignedHintText, task, 0);
         }
 
-        private Config.TaskDefinition PickTask(Config.SpecialRoleDefinition role, RoleTypeId vanillaRole)
+        private Config.TaskDefinition PickTask(CustomRoleBase role, RoleTypeId vanillaRole)
         {
             List<Config.TaskDefinition> tasks = _config.TaskSystemConfig.Tasks ?? new List<Config.TaskDefinition>();
             Config.TaskDefinition roleTask = tasks.FirstOrDefault(task =>

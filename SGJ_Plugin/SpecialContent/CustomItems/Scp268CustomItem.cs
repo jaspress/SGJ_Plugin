@@ -4,6 +4,7 @@ namespace SGJ_Plugin.SpecialContent.CustomItems
     {
         public Scp268CustomItem() : base("SCP-268 疏忽帽", ItemType.SCP268)
         {
+            Description = "SCP-268 疏忽帽，使用原版隐匿效果。";
         }
     }
 }
