@@ -111,6 +111,18 @@ namespace SGJ_Plugin
 
             // 添加投降模块
             _modules.Add(new SurrenderModule(Config));
+
+            // 添加特殊阵营/角色/物品模块
+            _modules.Add(new SpecialContentModule(Config));
+
+            // 添加技能快捷键模块
+            _modules.Add(new SkillModule(Config));
+
+            // 添加基础任务模块
+            _modules.Add(new TaskModule(Config));
+
+            // 添加SCP交换模块
+            _modules.Add(new ScpSwapModule(Config));
             // 在这里可以添加其他模块
         }
 

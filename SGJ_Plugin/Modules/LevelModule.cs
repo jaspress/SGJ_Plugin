@@ -162,7 +162,7 @@ namespace SGJ_Plugin.Modules
             AddExperience(ev.Player, _config.LevelSystemConfig.DeathExperience, null);
 
             Player attacker = ev.Attacker;
-            int killExperience = GetKillExperienceForRole(ev.TargetOldRole);
+            int killExperience = SpecialContentModule.Instance?.GetKillExperience(ev.Player) ?? GetKillExperienceForRole(ev.TargetOldRole);
             if (attacker != null && attacker != ev.Player)
             {
                 PlayerLevelData killer = GetData(attacker);
@@ -222,6 +222,11 @@ namespace SGJ_Plugin.Modules
             {
                 PluginHelper.ShowTopRightHint(player, RenderTemplate(_config.LevelSystemConfig.ExperienceGainText, player, data, amount, reason), 2.5f);
             }
+        }
+
+        public void AwardExperience(Player player, int amount, string reason)
+        {
+            AddExperience(player, amount, reason);
         }
 
         private void CreateOrRefreshHud(Player player)
@@ -644,9 +649,10 @@ namespace SGJ_Plugin.Modules
             string titleRankName = TitleModule.Instance?.GetOverrideRankName(key) ?? string.Empty;
             string titleColor = TitleModule.Instance?.GetOverrideRankColor(key) ?? string.Empty;
             string effectiveTitleName = GetEffectiveTitleName(key);
+            string specialRoleName = SpecialContentModule.Instance?.GetRoleName(player);
             string roleName = player == null || player.Role.Type == RoleTypeId.Spectator
                 ? string.Empty
-                : PluginHelper.GetChineseRoleName(player.Role.Type);
+                : !string.IsNullOrWhiteSpace(specialRoleName) ? specialRoleName : PluginHelper.GetChineseRoleName(player.Role.Type);
             string roleColor = GetRoleColor(player);
 
             return template
@@ -680,6 +686,10 @@ namespace SGJ_Plugin.Modules
         {
             if (player == null)
                 return "#FFFFFF";
+
+            string specialRoleColor = SpecialContentModule.Instance?.GetRoleColor(player);
+            if (!string.IsNullOrWhiteSpace(specialRoleColor))
+                return specialRoleColor;
 
             List<Config.TeamChatColor> colors = _config.ChatConfig?.TeamColors;
             if (colors != null)

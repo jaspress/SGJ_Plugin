@@ -178,9 +178,40 @@
     <Compile Include="Modules\LevelModule.cs" />
     <Compile Include="Modules\ModuleBase.cs" />
     <Compile Include="Modules\SurrenderModule.cs" />
+    <Compile Include="Modules\SkillModule.cs" />
+    <Compile Include="Modules\ScpSwapModule.cs" />
+    <Compile Include="Modules\SpecialContentModule.cs" />
     <Compile Include="Modules\SpectatorHudModule.cs" />
+    <Compile Include="Modules\TaskModule.cs" />
     <Compile Include="Modules\TitleModule.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SpecialContent\Base\CustomContentBase.cs" />
+    <Compile Include="SpecialContent\CustomItems\ArmorCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\CiRadioCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\FoodCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\GenericCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\IdCardCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\MedicalCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\MeleeWeaponCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\RangedWeaponCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\ScientistKeycardCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\Scp207CustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\Scp268CustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\Scp500CustomItem.cs" />
+    <Compile Include="SpecialContent\CustomItems\SecurityKeycardCustomItem.cs" />
+    <Compile Include="SpecialContent\CustomRoles\ChaosCommanderRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\ClassDHackerRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\GenericCustomRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\GocCommanderRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\GruCommanderRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\NtfCommanderRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\OtherworldTaskForceAgentRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\ScarletKingCultistRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\Scp049DoctorRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\SecurityCaptainRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\SeniorScientistRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\SerpentsHandCommanderRole.cs" />
+    <Compile Include="SpecialContent\CustomRoles\UiuCommanderRole.cs" />
     <Compile Include="UI\Core\UICore.cs" />
     <Compile Include="UI\Core\UIElement.cs" />
     <Compile Include="UI\Elements\TextHintElement.cs" />
@@ -191,6 +222,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Modules\Faction\" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

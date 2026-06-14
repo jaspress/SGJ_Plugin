@@ -1,6 +1,9 @@
 ﻿using Exiled.API.Enums;
 using Exiled.API.Interfaces;
 using PlayerRoles;
+using SGJ_Plugin.SpecialContent.Base;
+using SGJ_Plugin.SpecialContent.CustomItems;
+using SGJ_Plugin.SpecialContent.CustomRoles;
 using System.Collections.Generic;
 using System.ComponentModel;
 
@@ -43,6 +46,18 @@ namespace SGJ_Plugin
 
         [Description("Player surrender module settings.")]
         public SurrenderConfigClass SurrenderModuleConfig { get; set; } = new SurrenderConfigClass();
+
+        [Description("Special RXSEND-style camps, roles, and items settings.")]
+        public SpecialContentConfigClass SpecialContentConfig { get; set; } = new SpecialContentConfigClass();
+
+        [Description("Skill hotkey and server-specific settings page.")]
+        public SkillSystemConfigClass SkillSystemConfig { get; set; } = new SkillSystemConfigClass();
+
+        [Description("Simple camp and special role task system settings.")]
+        public TaskSystemConfigClass TaskSystemConfig { get; set; } = new TaskSystemConfigClass();
+
+        [Description("SCP role swap request settings.")]
+        public ScpSwapConfigClass ScpSwapConfig { get; set; } = new ScpSwapConfigClass();
 
         public class InfiniteAmmoConfigClass
         {
@@ -90,6 +105,78 @@ namespace SGJ_Plugin
 
             [Description("Public welcome broadcast duration in seconds.")]
             public float PublicWelcomeBroadcastDuration { get; set; } = 5f;
+
+            [Description("Shared helper UI refresh interval in seconds. Lower values make queued UI countdowns smoother.")]
+            public float UiRefreshIntervalSeconds { get; set; } = 0.5f;
+
+            [Description("Delay before queued server broadcasts are shown, in seconds.")]
+            public float BroadcastDelaySeconds { get; set; } = 3f;
+
+            [Description("Show a persistent top status bar.")]
+            public bool TopStatusEnabled { get; set; } = true;
+
+            [Description("Top status text. Placeholders: {Config.ShowServerName}, {server_name}, {plugin_version}, {server_tps}, {server_max_tps}, {player_count}, {max_player_count}")]
+            public string TopStatusText { get; set; } = "<size=22.5>| {Config.ShowServerName} | TPS: {server_tps}/{server_max_tps} | Plugin {plugin_version} |</size>";
+
+            [Description("Top status X coordinate.")]
+            public float TopStatusXCoordinate { get; set; } = 0f;
+
+            [Description("Top status Y coordinate.")]
+            public float TopStatusYCoordinate { get; set; } = 20f;
+
+            [Description("Top status font size.")]
+            public int TopStatusFontSize { get; set; } = 18;
+
+            [Description("Line-height percent used by queued top-right UI hints to avoid rich-text lines sticking together.")]
+            public int TopRightHintLineHeightPercent { get; set; } = 140;
+
+            [Description("Blank lines inserted between queued top-right UI messages.")]
+            public int TopRightHintMessageSpacingLines { get; set; } = 1;
+
+            [Description("Maximum visible messages in the top-right queued UI. Older messages are dropped first.")]
+            public int TopRightHintMaxVisibleMessages { get; set; } = 4;
+
+            [Description("Maximum estimated text lines in the top-right queued UI.")]
+            public int TopRightHintMaxVisibleLines { get; set; } = 10;
+
+            [Description("Center-top queued hint X coordinate.")]
+            public float CenterTopHintXCoordinate { get; set; } = 0f;
+
+            [Description("Center-top queued hint Y coordinate.")]
+            public float CenterTopHintYCoordinate { get; set; } = 150f;
+
+            [Description("Center-top queued hint font size.")]
+            public int CenterTopHintFontSize { get; set; } = 22;
+
+            [Description("Line-height percent used by queued center-top UI hints.")]
+            public int CenterTopHintLineHeightPercent { get; set; } = 140;
+
+            [Description("Blank lines inserted between queued center-top UI messages.")]
+            public int CenterTopHintMessageSpacingLines { get; set; } = 1;
+
+            [Description("Maximum visible messages in the center-top queued UI. Older messages are dropped first.")]
+            public int CenterTopHintMaxVisibleMessages { get; set; } = 3;
+
+            [Description("Maximum estimated text lines in the center-top queued UI.")]
+            public int CenterTopHintMaxVisibleLines { get; set; } = 8;
+
+            [Description("Maximum visible queued server broadcast messages.")]
+            public int BroadcastMaxVisibleMessages { get; set; } = 3;
+
+            [Description("Maximum estimated lines in queued server broadcasts.")]
+            public int BroadcastMaxVisibleLines { get; set; } = 7;
+
+            [Description("Exclusive center info UI X coordinate. This UI is replaced by the newest role/item introduction.")]
+            public float CenterInfoXCoordinate { get; set; } = 0f;
+
+            [Description("Exclusive center info UI Y coordinate.")]
+            public float CenterInfoYCoordinate { get; set; } = 260f;
+
+            [Description("Exclusive center info UI font size.")]
+            public int CenterInfoFontSize { get; set; } = 21;
+
+            [Description("Line-height percent used by exclusive center info UI.")]
+            public int CenterInfoLineHeightPercent { get; set; } = 160;
         }
 
         public class GuardOffDutyConfigClass
@@ -225,7 +312,7 @@ namespace SGJ_Plugin
             public string ExperienceGainText { get; set; } = "<b><size=20><color=#7FFFD4>[📢]你已增加经验值<color=#90EE90>{gained_xp}</color>!</color></size></b>";
 
             [Description("Experience notification X coordinate.")]
-            public float ExperienceHintXCoordinate { get; set; } = 820f;
+            public float ExperienceHintXCoordinate { get; set; } = 700f;
 
             [Description("Experience notification Y coordinate.")]
             public float ExperienceHintYCoordinate { get; set; } = 120f;
@@ -281,17 +368,17 @@ namespace SGJ_Plugin
             [Description("Text added above the level HUD while spectating a player. Placeholders: {observed_name}.")]
             public string ObservedPlayerText { get; set; } = "<align=center><size=23><b>你正在观察：{observed_name}</b></size></align>";
 
-            [Description("Spectator HUD text template. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
-            public string HudText { get; set; } = "<align=right><b><size=21.5>下一次刷新：{respawn_wave}\n倒计时：{respawn_time}\n票数：{respawn_tickets}\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
+            [Description("Spectator HUD text template. Placeholders: {server_name}, {player_count}, {max_player_count}, {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
+            public string HudText { get; set; } = "<align=right><b><size=21.5>{server_name}\n玩家：{player_count}/{max_player_count}\n\n{respawn_wave}\n\n倒计时：{respawn_time}\n\n票数：{respawn_tickets}\n\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
 
-            [Description("Template used when no spectated player is found. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
-            public string NoObservedPlayerText { get; set; } = "<align=right><b><size=21.5>下一次刷新：{respawn_wave}\n倒计时：{respawn_time}\n票数：{respawn_tickets}\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
+            [Description("Template used when no spectated player is found. Placeholders: {server_name}, {player_count}, {max_player_count}, {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
+            public string NoObservedPlayerText { get; set; } = "<align=right><b><size=21.5>{server_name}\n玩家：{player_count}/{max_player_count}\n\n{respawn_wave}\n\n倒计时：{respawn_time}\n\n票数：{respawn_tickets}\n\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
 
-            [Description("Respawn wave info template. Placeholders: {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
-            public string RespawnInfoText { get; set; } = "<align=right><b><size=21.5>下一次刷新：{respawn_wave}\n倒计时：{respawn_time}\n票数：{respawn_tickets}\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
+            [Description("Respawn wave info template. Placeholders: {server_name}, {player_count}, {max_player_count}, {respawn_wave}, {respawn_time}, {respawn_tickets}, {respawn_team}, {team_color}.")]
+            public string RespawnInfoText { get; set; } = "<align=right><b><size=21.5>{server_name} - 玩家：{player_count}/{max_player_count}\n\n{respawn_wave}\n\n倒计时：{respawn_time}\n\n票数：{respawn_tickets}\n\n阵营：<color={team_color}>{respawn_team}</color></size></b></align>";
 
             [Description("Maximum visible lines. Extra lines are trimmed to avoid going off screen.")]
-            public int MaxVisibleLines { get; set; } = 8;
+            public int MaxVisibleLines { get; set; } = 12;
 
             [Description("Spectator HUD X coordinate.")]
             public float HudXCoordinate { get; set; } = 870f;
@@ -421,8 +508,7 @@ namespace SGJ_Plugin
         {
             public List<DamageType> DisabledDamageTypes { get; set; } = new List<DamageType>
             {
-                DamageType.Scp207,
-                DamageType.Scp1509
+                DamageType.Scp207
             };
         }
 
@@ -431,6 +517,620 @@ namespace SGJ_Plugin
             [Description("Enable surrender module.")]
             public bool IsEnabled { get; set; } = true;
 
+        }
+
+        public class SpecialContentConfigClass
+        {
+            [Description("Enable special camps, roles, and items module.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("Enable applying special role profiles to players after they spawn.")]
+            public bool ApplySpecialRolesOnSpawn { get; set; } = true;
+
+            [Description("Enable giving configured loadout items for special roles.")]
+            public bool GiveRoleLoadouts { get; set; } = true;
+
+            [Description("Clear vanilla role inventory before giving special role loadout items.")]
+            public bool ClearInventoryBeforeLoadout { get; set; } = true;
+
+            [Description("Enable special item definitions. Unknown custom items stay configurable but are not spawned unless mapped to an existing ItemType.")]
+            public bool EnableSpecialItems { get; set; } = true;
+
+            [Description("Show a private hint when a special role is applied.")]
+            public bool ShowAssignedRoleHint { get; set; } = true;
+
+            [Description("Special role hint text. Placeholders: {role_name}, {camp_name}, {base_role}.")]
+            public string AssignedRoleHintText { get; set; } = "<b><size=20><color=#7FFFD4>[特殊角色]</color> 你正在扮演：<color=#90EE90>{role_name}</color>\n阵营：{camp_name}</size></b>";
+
+            [Description("Special role hint duration in seconds.")]
+            public float AssignedRoleHintDuration { get; set; } = 20f;
+
+            [Description("Show role introduction in the exclusive center info UI when a special role is assigned.")]
+            public bool ShowRoleIntroduction { get; set; } = true;
+
+            [Description("Role introduction template. Placeholders: {role_name}, {camp_name}, {description}, {health}, {stamina}, {speed}, {resistance_head}, {resistance_body}, {resistance_arm}, {resistance_leg}, {primary_skill}, {secondary_skill}, {primary_cooldown}, {secondary_cooldown}, {loadout}.")]
+            public string RoleIntroductionText { get; set; } = "<b><size=21><color={role_color}>[{role_name}]</color></size></b>\n<line-height=160%><size=19>{description}\n阵营：<color={role_color}>{camp_name}</color>\n血量：{health} | 耐力：{stamina} | 速度：{speed}\n子弹抗性：头部 {resistance_head}% / 上身 {resistance_body}% / 手臂 {resistance_arm}% / 腿部 {resistance_leg}%\n技能：{primary_skill}({primary_cooldown}s) / {secondary_skill}({secondary_cooldown}s)\n背包：{loadout}</size></line-height>";
+
+            [Description("Exclusive center role introduction duration in seconds.")]
+            public float RoleIntroductionDuration { get; set; } = 20f;
+
+            [Description("Show item introduction in the exclusive center info UI when switching held item.")]
+            public bool ShowItemIntroductionOnSwitch { get; set; } = true;
+
+            [Description("Special item introduction template. Placeholders: {item_name}, {item_type}, {item_tag}, {description}.")]
+            public string SpecialItemIntroductionText { get; set; } = "<b><size=21><color=#7FFFD4>[特殊物品]</color> <color=#90EE90>{item_name}</color></size></b>\n<line-height=160%><size=19>{description}</size></line-height>";
+
+            [Description("Normal item introduction template. Placeholders: {item_name}, {item_type}, {item_tag}, {description}.")]
+            public string NormalItemIntroductionText { get; set; } = "<b><size=21><color=#DCDCDC>[普通物品]</color> <color=#FFFFFF>{item_name}</color></size></b>\n<line-height=160%><size=19>{description}</size></line-height>";
+
+            [Description("Held item introduction duration in seconds.")]
+            public float ItemIntroductionDuration { get; set; } = 5f;
+
+            [Description("Add special role prefix to DisplayNickname.")]
+            public bool UpdateDisplayNickname { get; set; } = true;
+
+            [Description("Special role display name template. Placeholders: {role_name}, {camp_name}, {base_name}.")]
+            public string DisplayNicknameTemplate { get; set; } = "[{role_name}] {base_name}";
+
+            [Description("Role enable switches by special role name. Defaults include RXSEND wiki role names and are all enabled.")]
+            public Dictionary<string, bool> EnabledRoles { get; set; } = DefaultEnabledRoles();
+
+            [Description("Camp enable switches by camp name. Defaults include RXSEND wiki camps and are all enabled.")]
+            public Dictionary<string, bool> EnabledCamps { get; set; } = DefaultEnabledCamps();
+
+            [Description("Special item enable switches by item name. Defaults include RXSEND wiki item categories/items and are all enabled.")]
+            public Dictionary<string, bool> EnabledItems { get; set; } = DefaultEnabledItems();
+
+            [Description("Special role definitions. BaseRole uses existing RoleTypeId. Use Tutorial for camps without matching vanilla role, such as Serpent's Hand.")]
+            public List<SpecialRoleDefinition> Roles { get; set; } = DefaultSpecialRoles();
+
+            [Description("Special item definitions mapped to existing ItemType names.")]
+            public List<SpecialItemDefinition> Items { get; set; } = DefaultSpecialItems();
+        }
+
+        public class SkillSystemConfigClass
+        {
+            [Description("Enable custom role skill hotkeys.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("Server-specific settings page header.")]
+            public string SettingsHeader { get; set; } = "SGJ 技能系统";
+
+            [Description("Collection id used by server-specific settings.")]
+            public byte CollectionId { get; set; } = 20;
+
+            [Description("Header setting id.")]
+            public int HeaderSettingId { get; set; } = 61000;
+
+            [Description("Primary skill setting id.")]
+            public int PrimarySkillSettingId { get; set; } = 61001;
+
+            [Description("Secondary skill setting id.")]
+            public int SecondarySkillSettingId { get; set; } = 61002;
+
+            [Description("Primary skill label.")]
+            public string PrimarySkillLabel { get; set; } = "主技能";
+
+            [Description("Secondary skill label.")]
+            public string SecondarySkillLabel { get; set; } = "副技能";
+
+            [Description("Suggested UnityEngine.KeyCode for primary skill, for example F, G, H, Alpha1.")]
+            public string PrimarySkillKey { get; set; } = "F";
+
+            [Description("Suggested UnityEngine.KeyCode for secondary skill, for example G, H, Alpha2.")]
+            public string SecondarySkillKey { get; set; } = "G";
+
+            [Description("Prevent interaction while GUI is open.")]
+            public bool PreventInteractionOnGui { get; set; } = true;
+
+            [Description("Allow spectators to trigger skills.")]
+            public bool AllowSpectatorTrigger { get; set; } = false;
+
+            [Description("Skill cooldown in seconds.")]
+            public float SkillCooldownSeconds { get; set; } = 5f;
+
+            [Description("Text shown when skill is on cooldown. Placeholders: {seconds}.")]
+            public string CooldownText { get; set; } = "<b><size=20><color=#FF9999>[技能]</color> 冷却中：{seconds}s</size></b>";
+
+            [Description("Text shown when no special role skill is available.")]
+            public string NoSkillText { get; set; } = "<b><size=20><color=#FF9999>[技能]</color> 当前角色没有可用技能</size></b>";
+        }
+
+        public class TaskSystemConfigClass
+        {
+            [Description("Enable simple task system.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("Assign a task after a player spawns.")]
+            public bool AssignOnSpawn { get; set; } = true;
+
+            [Description("Delay before assigning task after spawn, in seconds.")]
+            public float AssignDelaySeconds { get; set; } = 1.2f;
+
+            [Description("Show task assigned hint.")]
+            public bool ShowAssignedHint { get; set; } = true;
+
+            [Description("Show task progress hint.")]
+            public bool ShowProgressHint { get; set; } = true;
+
+            [Description("Show task completed hint.")]
+            public bool ShowCompletedHint { get; set; } = true;
+
+            [Description("Task assigned hint text. Placeholders: {task_name}, {description}, {progress}, {target}, {reward_xp}.")]
+            public string AssignedHintText { get; set; } = "<b><size=20><color=#7FFFD4>[任务]</color> {task_name}\n{description}\n奖励：{reward_xp} EXP</size></b>";
+
+            [Description("Task progress hint text. Placeholders: {task_name}, {description}, {progress}, {target}, {reward_xp}.")]
+            public string ProgressHintText { get; set; } = "<b><size=20><color=#7FFFD4>[任务]</color> {task_name}: {progress}/{target}</size></b>";
+
+            [Description("Task completed hint text. Placeholders: {task_name}, {description}, {progress}, {target}, {reward_xp}.")]
+            public string CompletedHintText { get; set; } = "<b><size=20><color=#90EE90>[任务完成]</color> {task_name}\n获得 {reward_xp} EXP</size></b>";
+
+            [Description("Task definitions. MatchRoleName has priority over MatchCamp. TaskType: KillPlayers, KillScps, KillHumans, Escape.")]
+            public List<TaskDefinition> Tasks { get; set; } = DefaultTasks();
+        }
+
+        public class TaskDefinition
+        {
+            public string Name { get; set; } = "基础任务";
+            public string Description { get; set; } = "完成一个简单目标。";
+            public string MatchCamp { get; set; } = string.Empty;
+            public string MatchRoleName { get; set; } = string.Empty;
+            public string TaskType { get; set; } = "KillPlayers";
+            public int TargetCount { get; set; } = 1;
+            public int RewardExperience { get; set; } = 25;
+            public bool IsEnabled { get; set; } = true;
+        }
+
+        public class ScpSwapConfigClass
+        {
+            [Description("Enable .swap command for harmful SCP role swaps.")]
+            public bool IsEnabled { get; set; } = true;
+
+            [Description("Request timeout in seconds.")]
+            public float RequestTimeoutSeconds { get; set; } = 20f;
+
+            [Description("Harmful SCP roles allowed to swap.")]
+            public List<string> AllowedScpRoles { get; set; } = new List<string>
+            {
+                RoleTypeId.Scp049.ToString(),
+                RoleTypeId.Scp096.ToString(),
+                RoleTypeId.Scp106.ToString(),
+                RoleTypeId.Scp173.ToString(),
+                RoleTypeId.Scp939.ToString(),
+                RoleTypeId.Scp3114.ToString(),
+            };
+
+            [Description("Hint shown to harmful SCPs after spawn.")]
+            public string SpawnHintText { get; set; } = "<b><size=20><color=#FF9999>[SCP交换]</color>\n\n可使用：<color=#90EE90><b>.swap [SCP名字]</b></color>\n请求和其他SCP交换角色\n\n同意：<color=#90EE90><b>.swap al</b></color>\n拒绝：<color=#FF9999><b>.swap nal</b></color></size></b>";
+
+            [Description("Request sent hint. Placeholders: {target}, {role}, {seconds}.")]
+            public string RequestSentText { get; set; } = "<b><size=20><color=#7FFFD4>[SCP交换]</color> 已向 <color=#90EE90>{target}</color> 请求交换 {role}，{seconds}s 后超时</size></b>";
+
+            [Description("Request received hint. Placeholders: {requester}, {requester_role}, {your_role}, {seconds}.")]
+            public string RequestReceivedText { get; set; } = "<b><size=20><color=#7FFFD4>[SCP交换]</color>\n\n<color=#90EE90>{requester}</color> 想用 {requester_role}\n和你的 {your_role} 交换\n\n同意：<color=#90EE90><b>.swap al</b></color>\n拒绝：<color=#FF9999><b>.swap nal</b></color>\n\n剩余 {seconds}s</size></b>";
+
+            public string AcceptedText { get; set; } = "<b><size=20><color=#90EE90>[SCP交换]</color> 交换成功</size></b>";
+            public string DeniedText { get; set; } = "<b><size=20><color=#FF9999>[SCP交换]</color> 对方拒绝了交换请求</size></b>";
+            public string TimeoutText { get; set; } = "<b><size=20><color=#FF9999>[SCP交换]</color> 交换请求已超时</size></b>";
+            public string NoRequestText { get; set; } = "<b><size=20><color=#FF9999>[SCP交换]</color> 当前没有待处理请求</size></b>";
+        }
+
+        public class SpecialRoleDefinition : CustomRoleBase
+        {
+        }
+
+        public class SpecialItemDefinition : CustomItemBase
+        {
+        }
+
+        private static Dictionary<string, bool> DefaultEnabledRoles()
+        {
+            return ToEnabledDictionary(new[]
+            {
+                "SCP-049 瘟疫医生", "SCP-049-2 “治愈”之人", "SCP-076-2 亚伯", "SCP-096 “羞涩”的人", "SCP-106 恐怖老人", "SCP-173", "SCP-939 千喉之兽", "SCP-3114",
+                "D级人员", "D级人员 黑客", "D级人员 杀手", "D级人员 盗贼", "D级人员 摔跤手", "D级人员 运动员", "D级人员 扒手", "D级人员 狂人", "D级人员 生存者", "D级人员 职业杀手", "D级人员 老兵",
+                "科研人员", "科研助手", "高级科研员", "人事主管", "道德伦理检察官", "医生", "清洁工", "蛇之手间谍", "UIU间谍", "UIU联络专员",
+                "Matilda(医疗特科）", "Speedwone(减速特科）", "Hedwig|(透视特科）", "Feelon(地雷特科）", "Lomao(加速特科）", "Shieldmeh(护盾特科）", "Kelen(加伤特科）", "Ruprecht(隐身特科）",
+                "安保部门 上尉", "安保部门 典狱长", "安保部门 中士", "安保部门 下士", "安保部门 镇爆队员", "安保部门 特别专员", "安保部门 突击队员", "安保部门 警员", "安保部门 菜鸟", "安保部门 教官",
+                "战术应对一部 设施主管", "战术应对一部 安全主管", "战术应对一部 中尉", "战术应对一部 内部安全代理", "战术应对一部 战斗专家", "战术应对一部 重装", "战术应对一部 工程师", "战术应对一部 突击队员", "战术应对一部 医疗兵", "战术应对一部 士兵",
+                "MEG 生化专家", "MEG 九尾狐收容专家", "MEG 落锤特战教官", "MEG 灼烧器安全专员", "MEG 律法左手调查员",
+                "九尾狐 指挥官", "九尾狐 狙击手", "九尾狐 战斗专家", "九尾狐 士兵",
+                "快速反应部队 指挥官", "快速反应部队 机枪手", "快速反应部队 精准射手", "快速反应部队 医疗兵", "快速反应部队 突击队员", "快速反应部队 盾牌手", "快速反应部队 士兵",
+                "精锐快反 指挥官", "精锐快反 工程师", "精锐快反 机枪手", "精锐快反 医疗兵", "精锐快反 士兵",
+                "战术应对二部 指挥官", "战术应对二部 机枪手", "战术应对二部 工程师", "战术应对二部 医疗兵", "战术应对二部 士兵",
+                "落锤特战A连 指挥官", "落锤特战A连 无畏战士", "落锤特战A连 医疗专家", "落锤特战A连 支援兵", "落锤特战A连 作战专家", "落锤特战A连 先锋", "落锤特战A连 士兵",
+                "落锤特战B连 指挥官", "落锤特战B连 副指挥", "落锤特战B连 机枪手", "落锤特战B连 技术员", "落锤特战B连 毒气专家", "落锤特战B连 医疗兵", "落锤特战B连 士兵",
+                "律法左手调查员", "律法左手调查小队 执法官", "律法左手调查小队 助手", "律法左手调查小队 抓捕手", "律法左手调查小队 征召人员",
+                "GOC间谍", "GOC侦查小队 队长", "GOC侦查小队 士兵", "GOC火力支援部队 指挥官", "GOC火力支援部队 机枪手", "GOC火力支援部队 士兵",
+                "GOC主力部队 指挥官", "GOC主力部队 支援兵", "GOC主力部队 收容专家", "GOC主力部队 探测专家", "GOC主力部队 突破手", "GOC主力部队 士兵",
+                "UIU收容小组 组长", "UIU收容小组 暗面", "UIU收容小组 收容专家", "UIU收容小组 机枪手", "UIU收容小组 组员",
+                "蛇之手 指挥官", "蛇之手 特种探员", "蛇之手 疯子", "蛇之手 士兵",
+                "混沌分裂者 指挥官", "混沌分裂者 恶魔", "混沌分裂者 猎人", "混沌分裂者 重装", "混沌分裂者 士兵", "混沌分裂者 征召人员",
+                "混沌分裂者突击部队 指挥官", "混沌分裂者突击部队 重装", "混沌分裂者突击部队 士兵", "混沌分裂者突击部队 爆破专家", "混沌分裂者突击部队 战斗专家",
+                "混沌分裂者护送小组 指挥官", "混沌分裂者护送小组 士兵",
+                "GOC 指挥官", "GOC 无畏勇士", "GOC 战斗专家", "GOC 士兵",
+                "GRU-P侵入部队 指挥官", "GRU-P侵入部队 少尉", "GRU-P侵入部队 重装", "GRU-P侵入部队 战斗工兵", "GRU-P侵入部队 战斗专家", "GRU-P侵入部队 士兵",
+                "GRU-P近卫小组 组员", "GRU-P近卫小组 机枪手", "GRU-P近卫小组 精确射手",
+                "UIU特工组 指挥官", "UIU特工组 组员", "UIU特工组 雷击", "UIU特工组 犀牛", "UIU特工组 回声",
+                "特异事故处 指挥官", "特异事故处 战斗专家", "特异事故处 渗透", "特异事故处 士兵",
+                "深红王之子 助祭", "深红王之子 教众", "深红王之子 祭祀", "深红王之子 狂信徒", "深红王之子 献祭者", "深红王之子 深红铁骑",
+                "异界特遣队 指挥官", "异界特遣队 狂战士", "异界特遣队 特工", "异界特遣队 士兵", "异界特遣队 征召人员",
+                "观察者-观察者"
+            });
+        }
+
+        private static Dictionary<string, bool> DefaultEnabledCamps()
+        {
+            return ToEnabledDictionary(new[]
+            {
+                "SCP", "D级人员", "特殊人员", "科研人员", "特殊科研", "安保人员", "战术应对一部", "MEG专家组", "间谍人员",
+                "基金会阵营", "九尾狐小队", "快速反应部队", "精锐快速反应部队", "战术应对二部", "落锤特战A连", "落锤特战B连", "落锤特战B连维修三组",
+                "律法左手调查小队", "GOC危险环境作战部队", "GOC侦查小队", "GOC火力支援部队", "特异事故处收容小组",
+                "蛇之手", "混沌分裂者", "混沌分裂者突袭部队", "混沌分裂者护送小组", "全球超自然联盟 攻击小组",
+                "格鲁乌P（后时代）侵入部队", "格鲁乌P 近卫小组", "特异事故处特工小组", "特异事故处特工小组 特种干员", "特异事故处陆军",
+                "深红王之子", "异界特遣队C组", "观察者"
+            });
+        }
+
+        private static Dictionary<string, bool> DefaultEnabledItems()
+        {
+            return ToEnabledDictionary(new[]
+            {
+                "ID卡", "通用权限卡", "警卫权限卡", "安保权限卡", "科研权限卡", "特殊权限卡", "O5权限卡",
+                "近战武器", "远程武器", "CI对讲机", "断手", "大G钥匙", "cheems", "小说", "“重要”情报文件",
+                "医疗用品", "食品", "SCP-005 万能钥匙", "SCP-009 红冰", "SCP-109 无限水壶", "SCP-127 活体枪", "SCP-207 一箱可乐",
+                "SCP-215 拟人眼镜", "SCP-268 疏忽帽", "SCP-294 咖啡机", "SCP-303 门后男", "SCP-330 只能拿两个",
+                "SCP-409 晶蔓", "SCP-427 洛夫克拉夫特吊坠", "SCP-500 万能药", "SCP-1025 疾病百科大全",
+                "SCP-1033-RU 防御手镯", "SCP-1499 防毒面具", "SCP-3238 dado汁", "伪装服饰", "防化服", "防护装备", "视觉辅助", "背包扩容", "工具箱", "硬币，眼药水", "电池"
+            });
+        }
+
+        private static List<SpecialRoleDefinition> DefaultSpecialRoles()
+        {
+            List<SpecialRoleDefinition> roles = new List<SpecialRoleDefinition>();
+            AddRole(roles, new Scp049DoctorRole());
+            AddRole(roles, new ClassDHackerRole());
+            AddRole(roles, new SeniorScientistRole());
+            AddRole(roles, new SecurityCaptainRole());
+            AddRole(roles, new NtfCommanderRole());
+            AddRole(roles, new SerpentsHandCommanderRole());
+            AddRole(roles, new ChaosCommanderRole());
+            AddRole(roles, new GocCommanderRole());
+            AddRole(roles, new GruCommanderRole());
+            AddRole(roles, new UiuCommanderRole());
+            AddRole(roles, new ScarletKingCultistRole());
+            AddRole(roles, new OtherworldTaskForceAgentRole());
+
+            foreach (string name in DefaultEnabledRoles().Keys)
+            {
+                if (roles.Exists(role => role.Name == name))
+                    continue;
+
+                roles.Add(new SpecialRoleDefinition
+                {
+                    Name = name,
+                    Camp = GuessCamp(name),
+                    BaseRole = GuessBaseRole(name).ToString(),
+                    Health = GuessHealth(name),
+                    ArtificialHealth = GuessArtificialHealth(name),
+                    Stamina = 100,
+                    Speed = GuessSpeed(name),
+                    BulletResistanceHead = GuessBulletResistanceHead(name),
+                    BulletResistanceBody = GuessBulletResistanceBody(name),
+                    BulletResistanceArm = GuessBulletResistanceArm(name),
+                    BulletResistanceLeg = GuessBulletResistanceLeg(name),
+                    BadgeColor = GuessBadgeColor(name),
+                    RoleColor = GuessRoleColor(name),
+                    KillExperience = GuessSpecialKillExperience(name),
+                    Description = GuessRoleDescription(name),
+                    PrimarySkillName = "角色能力",
+                    PrimarySkillDescription = $"触发 {name} 的主能力。",
+                    PrimarySkillCooldownSeconds = GuessSkillCooldown(name, true),
+                    SecondarySkillName = "辅助能力",
+                    SecondarySkillDescription = $"触发 {name} 的辅助能力。",
+                    SecondarySkillCooldownSeconds = GuessSkillCooldown(name, false),
+                    LoadoutItems = GuessLoadout(name),
+                });
+            }
+
+            return roles;
+        }
+
+        private static List<SpecialItemDefinition> DefaultSpecialItems()
+        {
+            List<SpecialItemDefinition> items = new List<SpecialItemDefinition>();
+            AddItem(items, new IdCardCustomItem());
+            AddItem(items, new ScientistKeycardCustomItem());
+            AddItem(items, new SecurityKeycardCustomItem());
+            AddItem(items, new RangedWeaponCustomItem());
+            AddItem(items, new MeleeWeaponCustomItem());
+            AddItem(items, new CiRadioCustomItem());
+            AddItem(items, new MedicalCustomItem());
+            AddItem(items, new FoodCustomItem());
+            AddItem(items, new Scp500CustomItem());
+            AddItem(items, new Scp207CustomItem());
+            AddItem(items, new Scp268CustomItem());
+            AddItem(items, new ArmorCustomItem());
+
+            foreach (SpecialItemDefinition item in new List<SpecialItemDefinition>
+            {
+                new SpecialItemDefinition { Name = "ID卡", GameItem = ItemType.KeycardJanitor.ToString() },
+                new SpecialItemDefinition { Name = "通用权限卡", GameItem = ItemType.KeycardZoneManager.ToString() },
+                new SpecialItemDefinition { Name = "警卫权限卡", GameItem = ItemType.KeycardGuard.ToString() },
+                new SpecialItemDefinition { Name = "安保权限卡", GameItem = ItemType.KeycardMTFPrivate.ToString() },
+                new SpecialItemDefinition { Name = "科研权限卡", GameItem = ItemType.KeycardScientist.ToString() },
+                new SpecialItemDefinition { Name = "特殊权限卡", GameItem = ItemType.KeycardFacilityManager.ToString() },
+                new SpecialItemDefinition { Name = "O5权限卡", GameItem = ItemType.KeycardO5.ToString() },
+                new SpecialItemDefinition { Name = "近战武器", GameItem = ItemType.Jailbird.ToString() },
+                new SpecialItemDefinition { Name = "远程武器", GameItem = ItemType.GunCOM15.ToString() },
+                new SpecialItemDefinition { Name = "CI对讲机", GameItem = ItemType.Radio.ToString() },
+                new SpecialItemDefinition { Name = "医疗用品", GameItem = ItemType.Medkit.ToString() },
+                new SpecialItemDefinition { Name = "食品", GameItem = ItemType.Painkillers.ToString() },
+                new SpecialItemDefinition { Name = "SCP-207 一箱可乐", GameItem = ItemType.SCP207.ToString() },
+                new SpecialItemDefinition { Name = "SCP-268 疏忽帽", GameItem = ItemType.SCP268.ToString() },
+                new SpecialItemDefinition { Name = "SCP-330 只能拿两个", GameItem = ItemType.SCP330.ToString() },
+                new SpecialItemDefinition { Name = "SCP-500 万能药", GameItem = ItemType.SCP500.ToString() },
+                new SpecialItemDefinition { Name = "防护装备", GameItem = ItemType.ArmorCombat.ToString() },
+                new SpecialItemDefinition { Name = "硬币，眼药水", GameItem = ItemType.Coin.ToString() },
+                new SpecialItemDefinition { Name = "电池", GameItem = ItemType.Flashlight.ToString() },
+            })
+            {
+                item.IsSpecialItem = false;
+                item.Description = item.Name;
+                if (!items.Exists(existing => existing.Name == item.Name))
+                    items.Add(item);
+            }
+
+            return items;
+        }
+
+        private static void AddRole(List<SpecialRoleDefinition> roles, CustomRoleBase role)
+        {
+            roles.Add(new SpecialRoleDefinition
+            {
+                Name = role.Name,
+                Camp = role.Camp,
+                BaseRole = role.BaseRole,
+                Health = role.Health,
+                ArtificialHealth = role.ArtificialHealth,
+                Stamina = role.Stamina,
+                Speed = role.Speed,
+                BulletResistanceHead = role.BulletResistanceHead,
+                BulletResistanceBody = role.BulletResistanceBody,
+                BulletResistanceArm = role.BulletResistanceArm,
+                BulletResistanceLeg = role.BulletResistanceLeg,
+                BadgeColor = role.BadgeColor,
+                RoleColor = role.RoleColor,
+                KillExperience = role.KillExperience,
+                Description = role.Description,
+                PrimarySkillName = role.PrimarySkillName,
+                PrimarySkillDescription = role.PrimarySkillDescription,
+                PrimarySkillCooldownSeconds = role.PrimarySkillCooldownSeconds,
+                SecondarySkillName = role.SecondarySkillName,
+                SecondarySkillDescription = role.SecondarySkillDescription,
+                SecondarySkillCooldownSeconds = role.SecondarySkillCooldownSeconds,
+                LoadoutItems = role.LoadoutItems,
+            });
+        }
+
+        private static void AddItem(List<SpecialItemDefinition> items, CustomItemBase item)
+        {
+            items.Add(new SpecialItemDefinition
+            {
+                Name = item.Name,
+                GameItem = item.GameItem,
+                GiveByDefault = item.GiveByDefault,
+                IsSpecialItem = item.IsSpecialItem,
+                Description = item.Description,
+                PickupHintText = item.PickupHintText,
+            });
+        }
+
+        private static Dictionary<string, bool> ToEnabledDictionary(IEnumerable<string> names)
+        {
+            Dictionary<string, bool> result = new Dictionary<string, bool>();
+            foreach (string name in names)
+            {
+                if (!string.IsNullOrWhiteSpace(name) && !result.ContainsKey(name))
+                    result[name] = true;
+            }
+
+            return result;
+        }
+
+        private static string GuessCamp(string name)
+        {
+            if (name.StartsWith("SCP-")) return "SCP";
+            if (name.StartsWith("D级人员")) return "D级人员";
+            if (name.Contains("科研") || name == "医生" || name == "清洁工" || name.Contains("特科")) return name.Contains("特科") ? "特殊科研" : "科研人员";
+            if (name.StartsWith("安保部门")) return "安保人员";
+            if (name.StartsWith("战术应对一部")) return "战术应对一部";
+            if (name.StartsWith("战术应对二部")) return "战术应对二部";
+            if (name.StartsWith("MEG")) return "MEG专家组";
+            if (name.StartsWith("九尾狐")) return "九尾狐小队";
+            if (name.StartsWith("快速反应部队")) return "快速反应部队";
+            if (name.StartsWith("精锐快反")) return "精锐快速反应部队";
+            if (name.StartsWith("落锤特战A连")) return "落锤特战A连";
+            if (name.StartsWith("落锤特战B连")) return "落锤特战B连";
+            if (name.StartsWith("律法左手")) return "律法左手调查小队";
+            if (name.StartsWith("GOC")) return "全球超自然联盟 攻击小组";
+            if (name.StartsWith("蛇之手")) return "蛇之手";
+            if (name.StartsWith("混沌分裂者")) return "混沌分裂者";
+            if (name.StartsWith("GRU")) return "格鲁乌P（后时代）侵入部队";
+            if (name.StartsWith("UIU") || name.StartsWith("特异事故处")) return "特异事故处特工小组";
+            if (name.StartsWith("深红王之子")) return "深红王之子";
+            if (name.StartsWith("异界特遣队")) return "异界特遣队C组";
+            if (name.Contains("间谍")) return "间谍人员";
+            return "特殊人员";
+        }
+
+        private static RoleTypeId GuessBaseRole(string name)
+        {
+            if (name.Contains("049-2")) return RoleTypeId.Scp0492;
+            if (name.Contains("049")) return RoleTypeId.Scp049;
+            if (name.Contains("096")) return RoleTypeId.Scp096;
+            if (name.Contains("106")) return RoleTypeId.Scp106;
+            if (name.Contains("173")) return RoleTypeId.Scp173;
+            if (name.Contains("939")) return RoleTypeId.Scp939;
+            if (name.Contains("3114")) return RoleTypeId.Scp3114;
+            if (name.StartsWith("SCP-")) return RoleTypeId.Tutorial;
+            if (name.StartsWith("D级人员")) return RoleTypeId.ClassD;
+            if (name.Contains("科研") || name == "医生" || name == "清洁工" || name.Contains("特科")) return RoleTypeId.Scientist;
+            if (name.StartsWith("安保部门")) return RoleTypeId.FacilityGuard;
+            if (name.StartsWith("混沌分裂者")) return RoleTypeId.ChaosRifleman;
+            if (name.StartsWith("蛇之手") || name.StartsWith("深红王之子") || name.StartsWith("异界特遣队") || name.StartsWith("GRU")) return RoleTypeId.Tutorial;
+            if (name.Contains("指挥官") || name.Contains("主管") || name.Contains("队长")) return RoleTypeId.NtfCaptain;
+            if (name.Contains("专家") || name.Contains("工程师") || name.Contains("医疗")) return RoleTypeId.NtfSpecialist;
+            if (name.Contains("中士") || name.Contains("机枪手") || name.Contains("重装")) return RoleTypeId.NtfSergeant;
+            if (name.StartsWith("观察者")) return RoleTypeId.Spectator;
+            return RoleTypeId.NtfPrivate;
+        }
+
+        private static int GuessHealth(string name)
+        {
+            if (name == "混沌分裂者 指挥官") return 150;
+            if (name == "混沌分裂者 恶魔") return 170;
+            if (name.Contains("重装") || name.Contains("无畏") || name.Contains("深红铁骑")) return 150;
+            if (name.Contains("指挥官") || name.Contains("主管")) return 125;
+            if (name.StartsWith("SCP-")) return 500;
+            return 100;
+        }
+
+        private static int GuessArtificialHealth(string name)
+        {
+            if (name.Contains("重装") || name.Contains("无畏")) return 50;
+            if (name.StartsWith("SCP-")) return 200;
+            return 0;
+        }
+
+        private static float GuessSpeed(string name)
+        {
+            if (name == "混沌分裂者 指挥官") return 203.28f;
+            if (name == "混沌分裂者 恶魔") return 210.21f;
+            return 0f;
+        }
+
+        private static int GuessBulletResistanceHead(string name)
+        {
+            if (name.StartsWith("混沌分裂者")) return 0;
+            return 0;
+        }
+
+        private static int GuessBulletResistanceBody(string name)
+        {
+            if (name.StartsWith("混沌分裂者")) return 30;
+            if (name.Contains("重装") || name.Contains("无畏")) return 25;
+            return 0;
+        }
+
+        private static int GuessBulletResistanceArm(string name)
+        {
+            if (name.StartsWith("混沌分裂者")) return 20;
+            if (name.Contains("重装") || name.Contains("无畏")) return 15;
+            return 0;
+        }
+
+        private static int GuessBulletResistanceLeg(string name)
+        {
+            if (name.StartsWith("混沌分裂者")) return 20;
+            if (name.Contains("重装") || name.Contains("无畏")) return 15;
+            return 0;
+        }
+
+        private static string GuessBadgeColor(string name)
+        {
+            string camp = GuessCamp(name);
+            if (camp.Contains("混沌")) return "green";
+            if (camp.Contains("蛇之手")) return "lime";
+            if (camp.Contains("GOC")) return "cyan";
+            if (camp.Contains("SCP")) return "red";
+            if (camp.Contains("D级")) return "orange";
+            return "blue_green";
+        }
+
+        private static string GuessRoleColor(string name)
+        {
+            string camp = GuessCamp(name);
+            if (camp.Contains("SCP")) return "#FF4040";
+            if (camp.Contains("D级")) return "#FF8C00";
+            if (camp.Contains("科研")) return "#FFD700";
+            if (camp.Contains("混沌")) return "#32CD32";
+            if (camp.Contains("蛇之手")) return "#7FFF00";
+            if (camp.Contains("GOC")) return "#00FFFF";
+            if (camp.Contains("深红")) return "#DC143C";
+            return "#6699FF";
+        }
+
+        private static int GuessSpecialKillExperience(string name)
+        {
+            RoleTypeId baseRole = GuessBaseRole(name);
+            if (name.StartsWith("SCP-")) return 90;
+            if (baseRole == RoleTypeId.Tutorial) return 45;
+            if (name.Contains("指挥官") || name.Contains("主管")) return 50;
+            if (name.Contains("重装") || name.Contains("无畏")) return 45;
+            return 30;
+        }
+
+        private static string GuessRoleDescription(string name)
+        {
+            if (name == "混沌分裂者 指挥官")
+                return "混沌分裂者常规部队的领导者，持有未知权限卡，配备有SCAR-H自动步枪。";
+
+            if (name == "混沌分裂者 恶魔")
+                return "混沌分裂者的重火力支援，持有?权限卡，配备Saiga-12 Spike霰弹枪。";
+
+            return $"{name}，隶属于{GuessCamp(name)}。";
+        }
+
+        private static float GuessSkillCooldown(string name, bool primary)
+        {
+            if (name == "混沌分裂者 指挥官" && primary)
+                return 3f;
+
+            return 5f;
+        }
+
+        private static List<string> GuessLoadout(string name)
+        {
+            if (name.StartsWith("SCP-") || name.StartsWith("观察者"))
+                return new List<string>();
+
+            if (name.StartsWith("D级人员"))
+                return new List<string> { "ID卡", "医疗用品" };
+
+            if (name.Contains("科研") || name == "医生" || name == "清洁工" || name.Contains("特科"))
+                return new List<string> { "科研权限卡", "医疗用品", "SCP-500 万能药" };
+
+            if (name.StartsWith("混沌分裂者"))
+                return new List<string> { "CI对讲机", "远程武器", "防护装备", "医疗用品" };
+
+            if (name.StartsWith("蛇之手") || name.StartsWith("GRU") || name.StartsWith("深红王之子") || name.StartsWith("异界特遣队"))
+                return new List<string> { "远程武器", "防护装备", "医疗用品" };
+
+            return new List<string> { "安保权限卡", "远程武器", "防护装备", "医疗用品" };
+        }
+
+        private static List<TaskDefinition> DefaultTasks()
+        {
+            return new List<TaskDefinition>
+            {
+                new TaskDefinition { Name = "SCP 收割", MatchCamp = "SCP", TaskType = "KillHumans", TargetCount = 2, RewardExperience = 90, Description = "击杀 2 名人类。" },
+                new TaskDefinition { Name = "D级逃出生天", MatchCamp = "D级人员", TaskType = "Escape", TargetCount = 1, RewardExperience = 80, Description = "成功逃离设施。" },
+                new TaskDefinition { Name = "科研撤离", MatchCamp = "科研人员", TaskType = "Escape", TargetCount = 1, RewardExperience = 80, Description = "成功逃离设施。" },
+                new TaskDefinition { Name = "安保压制", MatchCamp = "安保人员", TaskType = "KillPlayers", TargetCount = 1, RewardExperience = 35, Description = "击杀 1 名敌对目标。" },
+                new TaskDefinition { Name = "九尾狐收容", MatchCamp = "九尾狐小队", TaskType = "KillScps", TargetCount = 1, RewardExperience = 80, Description = "击杀 1 个 SCP。" },
+                new TaskDefinition { Name = "快速反应", MatchCamp = "快速反应部队", TaskType = "KillPlayers", TargetCount = 2, RewardExperience = 60, Description = "击杀 2 名敌对目标。" },
+                new TaskDefinition { Name = "落锤推进", MatchCamp = "落锤特战A连", TaskType = "KillPlayers", TargetCount = 2, RewardExperience = 65, Description = "击杀 2 名敌对目标。" },
+                new TaskDefinition { Name = "GOC 清除异常", MatchCamp = "全球超自然联盟 攻击小组", TaskType = "KillScps", TargetCount = 1, RewardExperience = 80, Description = "击杀 1 个 SCP。" },
+                new TaskDefinition { Name = "UIU 行动", MatchCamp = "特异事故处特工小组", TaskType = "KillPlayers", TargetCount = 1, RewardExperience = 45, Description = "击杀 1 名敌对目标。" },
+                new TaskDefinition { Name = "蛇之手突围", MatchCamp = "蛇之手", TaskType = "KillPlayers", TargetCount = 1, RewardExperience = 45, Description = "击杀 1 名敌对目标。" },
+                new TaskDefinition { Name = "混沌突破", MatchCamp = "混沌分裂者", TaskType = "KillPlayers", TargetCount = 2, RewardExperience = 60, Description = "击杀 2 名敌对目标。" },
+                new TaskDefinition { Name = "GRU 渗透", MatchCamp = "格鲁乌P（后时代）侵入部队", TaskType = "KillPlayers", TargetCount = 1, RewardExperience = 45, Description = "击杀 1 名敌对目标。" },
+                new TaskDefinition { Name = "深红献祭", MatchCamp = "深红王之子", TaskType = "KillPlayers", TargetCount = 1, RewardExperience = 50, Description = "击杀 1 名敌对目标。" },
+                new TaskDefinition { Name = "异界行动", MatchCamp = "异界特遣队C组", TaskType = "KillPlayers", TargetCount = 1, RewardExperience = 45, Description = "击杀 1 名敌对目标。" },
+                new TaskDefinition { Name = "黑客生存路线", MatchRoleName = "D级人员 黑客", TaskType = "Escape", TargetCount = 1, RewardExperience = 100, Description = "作为黑客成功逃离。" },
+                new TaskDefinition { Name = "049 扩散", MatchRoleName = "SCP-049 瘟疫医生", TaskType = "KillHumans", TargetCount = 1, RewardExperience = 90, Description = "击杀 1 名人类。" },
+            };
         }
     }
 }

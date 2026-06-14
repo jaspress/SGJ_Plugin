@@ -186,6 +186,9 @@ namespace SGJ_Plugin.Modules
                 return string.Empty;
 
             return text
+                .Replace("{server_name}", info.ServerName)
+                .Replace("{player_count}", info.PlayerCount)
+                .Replace("{max_player_count}", info.MaxPlayerCount)
                 .Replace("{respawn_wave}", info.WaveName)
                 .Replace("{respawn_time}", info.TimeLeft)
                 .Replace("{respawn_tickets}", info.Tickets)
@@ -235,6 +238,9 @@ namespace SGJ_Plugin.Modules
 
             return new RespawnWaveInfo
             {
+                ServerName = _config.ShowServerName ?? string.Empty,
+                PlayerCount = Server.PlayerCount.ToString(),
+                MaxPlayerCount = Server.MaxPlayerCount.ToString(),
                 TeamName = GetRespawnTeamName(nextTeam),
                 TeamColor = GetRespawnTeamColor(nextTeam),
                 WaveName = GetRespawnWaveName(nextTeam),
@@ -445,6 +451,9 @@ namespace SGJ_Plugin.Modules
 
         private class RespawnWaveInfo
         {
+            public string ServerName { get; set; } = string.Empty;
+            public string PlayerCount { get; set; } = "0";
+            public string MaxPlayerCount { get; set; } = "0";
             public string TeamName { get; set; } = "未知";
             public string TeamColor { get; set; } = "#FFFFFF";
             public string WaveName { get; set; } = "未知";

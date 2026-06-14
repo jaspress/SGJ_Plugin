@@ -362,6 +362,11 @@ namespace SGJ_Plugin.Modules
 
         private ChatRecord CreateRecord(Player sender, ChatChannel channel, string content)
         {
+            string specialRoleName = SpecialContentModule.Instance?.GetRoleName(sender);
+            string specialRoleColor = SpecialContentModule.Instance?.GetRoleColor(sender);
+            string roleName = string.IsNullOrWhiteSpace(specialRoleName) ? PluginHelper.GetChineseRoleName(sender.Role.Type) : specialRoleName;
+            string roleColor = string.IsNullOrWhiteSpace(specialRoleColor) ? GetTeamColor(sender.Role.Team) : specialRoleColor;
+
             return new ChatRecord
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -370,9 +375,9 @@ namespace SGJ_Plugin.Modules
                 SteamId = GetPlayerKey(sender),
                 Name = sender.Nickname ?? string.Empty,
                 Team = sender.Role.Team.ToString(),
-                TeamColor = GetTeamColor(sender.Role.Team),
+                TeamColor = roleColor,
                 Role = sender.Role.Type.ToString(),
-                RoleName = PluginHelper.GetChineseRoleName(sender.Role.Type),
+                RoleName = roleName,
                 Content = content,
             };
         }

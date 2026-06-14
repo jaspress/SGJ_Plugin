@@ -12,8 +12,13 @@ namespace SGJ_Plugin.Helper
     public static class Helper
     {
         private const string TopRightHintElementId = "helper_top_right_hint";
+        private const string CenterTopHintElementId = "helper_center_top_hint";
+        private const string CenterInfoElementId = "helper_center_info";
+        private const string TopStatusElementId = "helper_top_status";
 
         private static readonly Dictionary<string, List<TimedMessage>> TopRightHints = new Dictionary<string, List<TimedMessage>>();
+        private static readonly Dictionary<string, List<TimedMessage>> CenterTopHints = new Dictionary<string, List<TimedMessage>>();
+        private static readonly Dictionary<string, TimedMessage> CenterInfoHints = new Dictionary<string, TimedMessage>();
         private static readonly List<TimedMessage> BroadcastMessages = new List<TimedMessage>();
         private static UIManager _uiManager;
         private static Config _config;
@@ -39,12 +44,26 @@ namespace SGJ_Plugin.Helper
                     string panelId = GetTopRightPanelId(GetPlayerKey(player));
                     _uiManager.HidePanel(player, panelId);
                     _uiManager.RemovePanel(panelId);
+
+                    string centerTopPanelId = GetCenterTopPanelId(GetPlayerKey(player));
+                    _uiManager.HidePanel(player, centerTopPanelId);
+                    _uiManager.RemovePanel(centerTopPanelId);
+
+                    string centerInfoPanelId = GetCenterInfoPanelId(GetPlayerKey(player));
+                    _uiManager.HidePanel(player, centerInfoPanelId);
+                    _uiManager.RemovePanel(centerInfoPanelId);
+
+                    string topStatusPanelId = GetTopStatusPanelId(GetPlayerKey(player));
+                    _uiManager.HidePanel(player, topStatusPanelId);
+                    _uiManager.RemovePanel(topStatusPanelId);
                 }
             }
 
             TopRightHints.Clear();
+            CenterTopHints.Clear();
+            CenterInfoHints.Clear();
             BroadcastMessages.Clear();
-            Map.ClearBroadcasts();
+            ClearBroadcasts();
             _uiManager = null;
             _config = null;
         }
@@ -65,7 +84,7 @@ namespace SGJ_Plugin.Helper
 
             System.DateTime now = System.DateTime.UtcNow;
             messages.RemoveAll(message => message.ExpireAt <= now);
-            messages.Insert(0, new TimedMessage
+            messages.Add(new TimedMessage
             {
                 Text = text,
                 ExpireAt = now.AddSeconds(System.Math.Max(0.5f, duration)),
@@ -74,20 +93,61 @@ namespace SGJ_Plugin.Helper
             RefreshTopRightHint(player);
         }
 
+        public static void ShowCenterTopHint(Player player, string text, float duration)
+        {
+            if (player == null || string.IsNullOrWhiteSpace(text))
+                return;
+
+            EnsureUiManager();
+
+            string key = GetPlayerKey(player);
+            if (!CenterTopHints.TryGetValue(key, out List<TimedMessage> messages))
+            {
+                messages = new List<TimedMessage>();
+                CenterTopHints[key] = messages;
+            }
+
+            System.DateTime now = System.DateTime.UtcNow;
+            messages.RemoveAll(message => message.ExpireAt <= now);
+            messages.Add(new TimedMessage
+            {
+                Text = text,
+                ExpireAt = now.AddSeconds(System.Math.Max(0.5f, duration)),
+            });
+
+            RefreshCenterTopHint(player);
+        }
+
+        public static void ShowCenterInfoHint(Player player, string text, float duration)
+        {
+            if (player == null || string.IsNullOrWhiteSpace(text))
+                return;
+
+            EnsureUiManager();
+
+            CenterInfoHints[GetPlayerKey(player)] = new TimedMessage
+            {
+                Text = text,
+                ExpireAt = System.DateTime.UtcNow.AddSeconds(System.Math.Max(0.5f, duration)),
+            };
+
+            RefreshCenterInfoHint(player);
+        }
+
         public static void ShowBroadcast(string text, float duration)
         {
             if (string.IsNullOrWhiteSpace(text))
                 return;
 
             System.DateTime now = System.DateTime.UtcNow;
+            System.DateTime showAt = now.AddSeconds(System.Math.Max(0f, _config?.MiscConfig?.BroadcastDelaySeconds ?? 0f));
             BroadcastMessages.RemoveAll(message => message.ExpireAt <= now);
             BroadcastMessages.Insert(0, new TimedMessage
             {
                 Text = text,
-                ExpireAt = now.AddSeconds(System.Math.Max(0.5f, duration)),
+                NotBefore = showAt,
+                ExpireAt = showAt.AddSeconds(System.Math.Max(0.5f, duration)),
             });
-
-            RefreshBroadcast();
         }
 
         public static string FormatTemplate(string template, Player player, Config config)
@@ -97,7 +157,12 @@ namespace SGJ_Plugin.Helper
                 .Replace("{player_name}", player?.Nickname ?? string.Empty)
                 .Replace("{name}", player?.Nickname ?? string.Empty)
                 .Replace("{Config.ShowServerName}", config?.ShowServerName ?? string.Empty)
-                .Replace("{server_name}", config?.ShowServerName ?? string.Empty);
+                .Replace("{server_name}", config?.ShowServerName ?? string.Empty)
+                .Replace("{server_tps}", FormatNumber(Server.Tps))
+                .Replace("{server_max_tps}", Server.MaxTps.ToString())
+                .Replace("{player_count}", Server.PlayerCount.ToString())
+                .Replace("{max_player_count}", Server.MaxPlayerCount.ToString())
+                .Replace("{plugin_version}", Main.Instance?.Version?.ToString() ?? "1.0.0");
         }
 
         public static string GetChineseRoleName(RoleTypeId role)
@@ -111,13 +176,13 @@ namespace SGJ_Plugin.Helper
                 case RoleTypeId.FacilityGuard:
                     return "设施保安";
                 case RoleTypeId.NtfPrivate:
-                    return "MTF列兵";
+                    return "九尾狐列兵";
                 case RoleTypeId.NtfSergeant:
-                    return "MTF中士";
+                    return "九尾狐中士";
                 case RoleTypeId.NtfCaptain:
-                    return "MTF指挥官";
+                    return "九尾狐指挥官";
                 case RoleTypeId.NtfSpecialist:
-                    return "MTF收容专家";
+                    return "九尾狐收容专家";
                 case RoleTypeId.ChaosConscript:
                     return "混沌分裂者征召兵";
                 case RoleTypeId.ChaosRifleman:
@@ -163,6 +228,89 @@ namespace SGJ_Plugin.Helper
             }
         }
 
+        public static string GetChineseItemName(ItemType item)
+        {
+            switch (item)
+            {
+                case ItemType.KeycardJanitor:
+                    return "清洁工权限卡";
+                case ItemType.KeycardScientist:
+                    return "科学家权限卡";
+                case ItemType.KeycardResearchCoordinator:
+                    return "研究主管权限卡";
+                case ItemType.KeycardZoneManager:
+                    return "区域经理权限卡";
+                case ItemType.KeycardGuard:
+                    return "警卫权限卡";
+                case ItemType.KeycardMTFPrivate:
+                    return "MTF列兵权限卡";
+                case ItemType.KeycardMTFOperative:
+                    return "MTF权限卡";
+                case ItemType.KeycardMTFCaptain:
+                    return "MTF指挥官权限卡";
+                case ItemType.KeycardFacilityManager:
+                    return "设施主管权限卡";
+                case ItemType.KeycardChaosInsurgency:
+                    return "混沌分裂者权限卡";
+                case ItemType.KeycardO5:
+                    return "O5权限卡";
+                case ItemType.Radio:
+                    return "对讲机";
+                case ItemType.GunCOM15:
+                    return "COM-15手枪";
+                case ItemType.GunCOM18:
+                    return "COM-18手枪";
+                case ItemType.GunRevolver:
+                    return "左轮手枪";
+                case ItemType.GunFSP9:
+                    return "FSP-9冲锋枪";
+                case ItemType.GunCrossvec:
+                    return "Crossvec冲锋枪";
+                case ItemType.GunE11SR:
+                    return "E-11-SR步枪";
+                case ItemType.GunAK:
+                    return "AK步枪";
+                case ItemType.GunShotgun:
+                    return "霰弹枪";
+                case ItemType.GunLogicer:
+                    return "Logicer机枪";
+                case ItemType.GrenadeHE:
+                    return "高爆手雷";
+                case ItemType.GrenadeFlash:
+                    return "闪光弹";
+                case ItemType.Medkit:
+                    return "医疗包";
+                case ItemType.Adrenaline:
+                    return "肾上腺素";
+                case ItemType.Painkillers:
+                    return "止痛药";
+                case ItemType.ArmorLight:
+                    return "轻型护甲";
+                case ItemType.ArmorCombat:
+                    return "战斗护甲";
+                case ItemType.ArmorHeavy:
+                    return "重型护甲";
+                case ItemType.Flashlight:
+                    return "手电筒";
+                case ItemType.Coin:
+                    return "硬币";
+                case ItemType.Jailbird:
+                    return "囚鸟";
+                case ItemType.SCP207:
+                    return "SCP-207 可乐";
+                case ItemType.SCP268:
+                    return "SCP-268 疏忽帽";
+                case ItemType.SCP330:
+                    return "SCP-330 糖果";
+                case ItemType.SCP500:
+                    return "SCP-500 万能药";
+                case ItemType.None:
+                    return "无";
+                default:
+                    return item.ToString();
+            }
+        }
+
         private static void StartRefreshCoroutine()
         {
             if (_refreshCoroutineStarted)
@@ -185,10 +333,15 @@ namespace SGJ_Plugin.Helper
         {
             while (_refreshCoroutineStarted)
             {
-                yield return Timing.WaitForSeconds(1f);
+                yield return Timing.WaitForSeconds(GetUiRefreshInterval());
 
                 foreach (Player player in Player.List)
+                {
                     RefreshTopRightHint(player);
+                    RefreshCenterTopHint(player);
+                    RefreshCenterInfoHint(player);
+                    RefreshTopStatus(player);
+                }
 
                 RefreshBroadcast();
             }
@@ -208,6 +361,15 @@ namespace SGJ_Plugin.Helper
             System.DateTime now = System.DateTime.UtcNow;
             messages.RemoveAll(message => message.ExpireAt <= now);
 
+            if (messages.Count == 0)
+            {
+                if (TopRightHints.ContainsKey(key))
+                    TopRightHints.Remove(key);
+
+                _uiManager.HidePanel(player, GetTopRightPanelId(key));
+                return;
+            }
+
             string panelId = GetTopRightPanelId(key);
             UIPanel panel = _uiManager.CreatePanel(panelId, "Helper Top Right Hint");
             TextHintElement element = panel.GetElement(TopRightHintElementId) as TextHintElement;
@@ -221,7 +383,119 @@ namespace SGJ_Plugin.Helper
             element.XCoordinate = Clamp(_config?.LevelSystemConfig?.ExperienceHintXCoordinate ?? 820f, -1100f, 1100f);
             element.YCoordinate = Clamp(_config?.LevelSystemConfig?.ExperienceHintYCoordinate ?? 120f, 0f, 1030f);
             element.FontSize = System.Math.Max(8, System.Math.Min(60, _config?.LevelSystemConfig?.ExperienceHintFontSize ?? 20));
-            element.Content = BuildTimedText(messages, now);
+            element.Content = FormatHintContent(BuildTimedText(messages, now, _config?.MiscConfig?.TopRightHintMessageSpacingLines ?? 2), _config?.MiscConfig?.TopRightHintLineHeightPercent ?? 150);
+            element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
+            element.Update();
+            _uiManager.ShowPanel(player, panelId);
+        }
+
+        private static void RefreshCenterTopHint(Player player)
+        {
+            if (player == null)
+                return;
+
+            EnsureUiManager();
+
+            string key = GetPlayerKey(player);
+            if (!CenterTopHints.TryGetValue(key, out List<TimedMessage> messages))
+                messages = new List<TimedMessage>();
+
+            System.DateTime now = System.DateTime.UtcNow;
+            messages.RemoveAll(message => message.ExpireAt <= now);
+
+            if (messages.Count == 0)
+            {
+                if (CenterTopHints.ContainsKey(key))
+                    CenterTopHints.Remove(key);
+
+                _uiManager.HidePanel(player, GetCenterTopPanelId(key));
+                return;
+            }
+
+            Config.MiscConfigClass misc = _config?.MiscConfig;
+            string panelId = GetCenterTopPanelId(key);
+            UIPanel panel = _uiManager.CreatePanel(panelId, "Helper Center Top Hint");
+            TextHintElement element = panel.GetElement(CenterTopHintElementId) as TextHintElement;
+            if (element == null)
+            {
+                element = _uiManager.CreateTextHint(panelId, CenterTopHintElementId, string.Empty);
+                element.Alignment = HintAlignment.Center;
+            }
+
+            element.Alignment = HintAlignment.Center;
+            element.XCoordinate = Clamp(misc?.CenterTopHintXCoordinate ?? 0f, -1100f, 1100f);
+            element.YCoordinate = Clamp(misc?.CenterTopHintYCoordinate ?? 120f, 0f, 1030f);
+            element.FontSize = System.Math.Max(8, System.Math.Min(60, misc?.CenterTopHintFontSize ?? 22));
+            element.Content = FormatHintContent(BuildTimedText(messages, now, misc?.CenterTopHintMessageSpacingLines ?? 2), misc?.CenterTopHintLineHeightPercent ?? 155);
+            element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
+            element.Update();
+            _uiManager.ShowPanel(player, panelId);
+        }
+
+        private static void RefreshCenterInfoHint(Player player)
+        {
+            if (player == null)
+                return;
+
+            EnsureUiManager();
+
+            string key = GetPlayerKey(player);
+            string panelId = GetCenterInfoPanelId(key);
+            if (!CenterInfoHints.TryGetValue(key, out TimedMessage message) || message.ExpireAt <= System.DateTime.UtcNow)
+            {
+                CenterInfoHints.Remove(key);
+                _uiManager.HidePanel(player, panelId);
+                return;
+            }
+
+            Config.MiscConfigClass misc = _config?.MiscConfig;
+            UIPanel panel = _uiManager.CreatePanel(panelId, "Helper Center Info");
+            TextHintElement element = panel.GetElement(CenterInfoElementId) as TextHintElement;
+            if (element == null)
+            {
+                element = _uiManager.CreateTextHint(panelId, CenterInfoElementId, string.Empty);
+                element.Alignment = HintAlignment.Center;
+            }
+
+            element.Alignment = HintAlignment.Center;
+            element.XCoordinate = Clamp(misc?.CenterInfoXCoordinate ?? 0f, -1100f, 1100f);
+            element.YCoordinate = Clamp(misc?.CenterInfoYCoordinate ?? 260f, 0f, 1030f);
+            element.FontSize = System.Math.Max(8, System.Math.Min(60, misc?.CenterInfoFontSize ?? 21));
+            element.Content = FormatHintContent(message.Text, misc?.CenterInfoLineHeightPercent ?? 160);
+            element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
+            element.Update();
+            _uiManager.ShowPanel(player, panelId);
+        }
+
+        private static void RefreshTopStatus(Player player)
+        {
+            if (player == null)
+                return;
+
+            EnsureUiManager();
+
+            string key = GetPlayerKey(player);
+            string panelId = GetTopStatusPanelId(key);
+            Config.MiscConfigClass misc = _config?.MiscConfig;
+            if (misc == null || !misc.IsEnabled || !misc.TopStatusEnabled)
+            {
+                _uiManager.HidePanel(player, panelId);
+                return;
+            }
+
+            UIPanel panel = _uiManager.CreatePanel(panelId, "Helper Top Status");
+            TextHintElement element = panel.GetElement(TopStatusElementId) as TextHintElement;
+            if (element == null)
+            {
+                element = _uiManager.CreateTextHint(panelId, TopStatusElementId, string.Empty);
+                element.Alignment = HintAlignment.Center;
+            }
+
+            element.Alignment = HintAlignment.Center;
+            element.XCoordinate = Clamp(misc.TopStatusXCoordinate, -1100f, 1100f);
+            element.YCoordinate = Clamp(misc.TopStatusYCoordinate, 0f, 1030f);
+            element.FontSize = System.Math.Max(8, System.Math.Min(60, misc.TopStatusFontSize));
+            element.Content = FormatTemplate(misc.TopStatusText, player, _config);
             element.IsVisible = !string.IsNullOrWhiteSpace(element.Content);
             element.Update();
             _uiManager.ShowPanel(player, panelId);
@@ -232,18 +506,77 @@ namespace SGJ_Plugin.Helper
             System.DateTime now = System.DateTime.UtcNow;
             BroadcastMessages.RemoveAll(message => message.ExpireAt <= now);
 
-            string content = BuildTimedText(BroadcastMessages, now);
-            if (string.IsNullOrWhiteSpace(content))
+            if (BroadcastMessages.Count == 0)
             {
-                Map.ClearBroadcasts();
+                ClearBroadcasts();
                 return;
             }
 
-            int remainingSeconds = System.Math.Max(1, (int)System.Math.Ceiling(BroadcastMessages.Max(message => (message.ExpireAt - now).TotalSeconds)));
-            Map.Broadcast((ushort)remainingSeconds, content, Broadcast.BroadcastFlags.Normal, true);
+            List<TimedMessage> activeMessages = BroadcastMessages.Where(message => message.NotBefore <= now).ToList();
+            if (activeMessages.Count == 0)
+                return;
+
+            string content = BuildTimedText(activeMessages, now, _config?.MiscConfig?.TopRightHintMessageSpacingLines ?? 2);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                ClearBroadcasts();
+                return;
+            }
+
+            int remainingSeconds = System.Math.Max(1, (int)System.Math.Ceiling(activeMessages.Max(message => (message.ExpireAt - now).TotalSeconds)));
+            SendBroadcast((ushort)remainingSeconds, content);
         }
 
-        private static string BuildTimedText(List<TimedMessage> messages, System.DateTime now)
+        private static void SendBroadcast(ushort duration, string content)
+        {
+            try
+            {
+                Broadcast broadcast = Broadcast.Singleton;
+                if (broadcast == null)
+                    return;
+
+                broadcast.RpcClearElements();
+                broadcast.RpcAddElement("\n" + content, duration, Broadcast.BroadcastFlags.Normal);
+            }
+            catch (System.Exception ex)
+            {
+                if (_config?.Debug == true)
+                    Log.Debug($"[Helper] Server broadcast failed, falling back to target broadcasts: {ex.Message}");
+
+                foreach (Player player in Player.List)
+                {
+                    try
+                    {
+                        Broadcast broadcast = Server.Broadcast;
+                        if (broadcast == null || player.Connection == null)
+                            continue;
+
+                        broadcast.TargetClearElements(player.Connection);
+                        broadcast.TargetAddElement(player.Connection, "\n" + content, duration, Broadcast.BroadcastFlags.Normal);
+                    }
+                    catch (System.Exception playerEx)
+                    {
+                        if (_config?.Debug == true)
+                            Log.Debug($"[Helper] Target broadcast failed for {player.Nickname}: {playerEx.Message}");
+                    }
+                }
+            }
+        }
+
+        private static void ClearBroadcasts()
+        {
+            try
+            {
+                Server.Broadcast?.RpcClearElements();
+            }
+            catch (System.Exception ex)
+            {
+                if (_config?.Debug == true)
+                    Log.Debug($"[Helper] Broadcast clear skipped: {ex.Message}");
+            }
+        }
+
+        private static string BuildTimedText(List<TimedMessage> messages, System.DateTime now, int spacingLines)
         {
             if (messages == null || messages.Count == 0)
                 return string.Empty;
@@ -255,7 +588,23 @@ namespace SGJ_Plugin.Helper
                 lines.Add($"[{seconds}s] {message.Text}");
             }
 
-            return string.Join("\n", lines);
+            spacingLines = System.Math.Max(0, spacingLines);
+            string separator = "\n" + new string('\n', spacingLines);
+            return string.Join(separator, lines);
+        }
+
+        private static string FormatHintContent(string text, int lineHeightPercent)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            string normalized = text.Replace("\r\n", "\n").Replace("\r", "\n").Trim();
+            int lineHeight = System.Math.Max(100, System.Math.Min(260, lineHeightPercent));
+
+            if (normalized.IndexOf("<line-height=", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return normalized;
+
+            return $"<line-height={lineHeight}%>{normalized}</line-height>";
         }
 
         private static void EnsureUiManager()
@@ -270,6 +619,21 @@ namespace SGJ_Plugin.Helper
         private static string GetTopRightPanelId(string playerKey)
         {
             return "helper_top_right_" + SanitizeKey(playerKey);
+        }
+
+        private static string GetCenterTopPanelId(string playerKey)
+        {
+            return "helper_center_top_" + SanitizeKey(playerKey);
+        }
+
+        private static string GetCenterInfoPanelId(string playerKey)
+        {
+            return "helper_center_info_" + SanitizeKey(playerKey);
+        }
+
+        private static string GetTopStatusPanelId(string playerKey)
+        {
+            return "helper_top_status_" + SanitizeKey(playerKey);
         }
 
         private static string GetPlayerKey(Player player)
@@ -300,9 +664,21 @@ namespace SGJ_Plugin.Helper
             return value;
         }
 
+        private static float GetUiRefreshInterval()
+        {
+            float interval = _config?.MiscConfig?.UiRefreshIntervalSeconds ?? 0.5f;
+            return Clamp(interval, 0.1f, 2f);
+        }
+
+        private static string FormatNumber(double value)
+        {
+            return System.Math.Round(value).ToString("0", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         private class TimedMessage
         {
             public string Text { get; set; } = string.Empty;
+            public System.DateTime NotBefore { get; set; } = System.DateTime.MinValue;
             public System.DateTime ExpireAt { get; set; }
         }
     }

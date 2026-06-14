@@ -37,15 +37,23 @@ namespace SGJ_Plugin.UI.Core
 
             foreach (UIElement element in elements.Where(x => x != null))
             {
-                element.Update();
                 AbstractHint hint = element.GetHintObject();
                 if (hints.Contains(hint))
+                {
                     display.RemoveHint(hint, GroupName);
-                else
-                    hints.Add(hint);
+                    hints.Remove(hint);
+                }
 
-                display.AddHint(hint, GroupName);
+                element.Update();
+                if (element.IsVisible && !string.IsNullOrWhiteSpace(element.Content))
+                {
+                    display.AddHint(hint, GroupName);
+                    hints.Add(hint);
+                }
             }
+
+            if (hints.Count == 0)
+                _playerHints.Remove(key);
 
             display.ForceUpdate(true);
         }
